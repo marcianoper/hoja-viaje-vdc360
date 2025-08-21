@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hoja de Viaje - VDC360°</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.5/dist/supabase.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    h1 { text-align: center; }
+    .section { border: 1px solid #ddd; padding: 10px; margin-bottom: 20px; }
+    .section h2 { margin-top: 0; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: center; }
+    input[type="number"] { width: 80px; }
+    .btn { padding: 6px 12px; cursor: pointer; background-color: #28a745; color: white; border: none; border-radius: 4px; margin-top: 5px; }
+  </style>
+</head>
+<body>
+  <h1>Hoja de Viaje - VDC360°</h1>
+  <label><strong>Fecha del viaje:</strong> <input type="date" id="fechaViaje"></label>
+  <div id="contenedorProductos"></div>
+  <button class="btn" onclick="guardarViaje()">Guardar Viaje</button>
+  <button class="btn" onclick="mostrarHistorial()">Ver Historial</button>
+  <button class="btn" onclick="generarResumenTotales()">Generar Documento de Totales</button>
+  <div id="historialContainer" style="margin-top: 30px;"></div>
+
+  <script>
+    const supabase = window.supabase.createClient(
+      'https://lujroedkbgffobyblbie.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx1anJvZWRrYmdmZm9ieWJsYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDEyOTgzNjcsImV4cCI6MTcwMTg5MzE2N30.2Rz1E1drFVFt1fwwzyuOd4ucDLZ50zMpReyVvVfvlSY'
+    );
+
+    const productos = ['Cabeza de res', 'Tripa de res', 'Menudo sucio', 'Cuajo de res', 'Pata sucia', 'Hígado', 'Libro de res', 'Teleco', 'Corazón'];
+
+    function getID(producto) {
+      return producto.toLowerCase().replace(/\s+/g, '-').normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    }
+
+    function crearTabla(producto) {
+      const id = getID(producto);
+      const section = document.createElement('div');
+      section.className = 'section';
+      section.innerHTML = `<h2>${producto}</h2><table id="tabla-${id}"><thead><tr><th>Kg</th><th>Piezas</th><th>Acciones</th></tr></thead><tbody></tbody></table><button class="btn agregar-btn" data-producto="${producto}">Agregar Pesada</button><p><strong>Total Kg:</strong> <span id="totalKg-${id}">0</span> | <strong>Total Pzas:</strong> <span id="totalPzas-${id}">0</span></p>`;
+      document.getElementById('contenedorProductos').appendChild(section);
+    }
+
+    function agregarFila(producto) {
+      const id = getID(producto);
+      const tabla = document.querySelector(`#tabla-${id} tbody`);
+      const fila = document.createElement('tr');
+      fila.innerHTML = `<td><input type="number" step="0.1" onchange="actualizarTotales('${producto}')"></td><td><input type="number" onchange="actualizarTotales('${producto}')"></td><td><button class="btn" onclick="eliminarFila(this)">Eliminar</button></td>`;
+      tabla.appendChild(fila);
+      actualizarTotales(producto);
+    }
+
+    function eliminarFila(btn) {
+      const row = btn.parentNode.parentNode;
+      const producto = row.closest('.section').querySelector('h2').textContent;
+      row.remove();
+      actualizarTotales(producto);
+    }
+
+    function actualizarTotales(producto) {
+      const id = getID(producto);
+      const filas = document.querySelectorAll(`#tabla-${id} tbody tr`);
+      let totalKg = 0;
+      let totalPzas = 0;
+      filas.forEach(row => {
+        const kg = parseFloat(row.children[0].children[0].value) || 0;
+        const pzas = parseFloat(row.children[1].children[0].value) || 0;
+        totalKg += kg;
+        totalPzas += pzas;
+      });
+      document.getElementById(`totalKg-${id}`).textContent = totalKg.toFixed(1);
+      document.getElementById(`totalPzas-${id}`).textContent = totalPzas;
+    }
+
+    async function guardarViaje() {
+      const fecha = document.getElementById('fechaViaje').value;
+      if (!fecha) return alert("⚠️ Por favor selecciona una fecha.");
+
+      const resultados = {};
+      productos.forEach(producto => {
+        const id = getID(producto);
+        const filas = document.querySelectorAll(`#tabla-${id} tbody tr`);
+        resultados[producto] = [];
+        filas.forEach(row => {
+          const kg = parseFloat(row.children[0].children[0].value) || 0;
+          const pzas = parseFloat(row.children[1].children[0].value) || 0;
+          resultados[producto].push({ kg, pzas });
+        });
+      });
+
+      const { data, error } = await supabase.from('hoja_viaje').insert([{ fecha, resultados }]);
+      if (error) alert("❌ Error al guardar: " + error.message);
+      else alert("✅ Viaje guardado correctamente.");
+    }
+
+    async function mostrarHistorial() {
+      const { data, error } = await supabase.from('hoja_viaje').select('*').order('fecha', { ascending: false });
+      const contenedor = document.getElementById('historialContainer');
+      contenedor.innerHTML = '';
+
+      if (error) {
+        contenedor.innerHTML = '<p style="color:red;">❌ Error al cargar historial: ' + error.message + '</p>';
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        contenedor.innerHTML = '<p>No hay viajes registrados.</p>';
+        return;
+      }
+
+      const tabla = document.createElement('table');
+      tabla.style.width = '100%';
+      tabla.border = 1;
+      tabla.innerHTML = '<thead><tr><th>Fecha</th><th>Resumen</th></tr></thead><tbody>' +
+        data.map(row => `<tr><td>${row.fecha}</td><td><pre>${JSON.stringify(row.resultados, null, 2)}</pre></td></tr>`).join('') +
+        '</tbody>';
+      contenedor.appendChild(tabla);
+    }
+
+    async function generarResumenTotales() {
+      const { data, error } = await supabase.from('hoja_viaje').select('*');
+      if (error || !data) return alert('❌ Error al obtener datos: ' + error.message);
+
+      const totales = {};
+      data.forEach(row => {
+        const productos = row.resultados || {};
+        Object.keys(productos).forEach(nombre => {
+          productos[nombre].forEach(r => {
+            if (!totales[nombre]) totales[nombre] = { kg: 0, pzas: 0 };
+            totales[nombre].kg += r.kg || 0;
+            totales[nombre].pzas += r.pzas || 0;
+          });
+        });
+      });
+
+      let html = '<h1>Resumen Total de Kilos y Piezas</h1>';
+      html += '<table border="1" cellpadding="6"><tr><th>Producto</th><th>Total Kg</th><th>Total Pzas</th></tr>';
+      Object.entries(totales).forEach(([nombre, valores]) => {
+        html += `<tr><td>${nombre}</td><td>${valores.kg.toFixed(1)}</td><td>${valores.pzas}</td></tr>`;
+      });
+      html += '</table>';
+
+      const blob = new Blob([`<html><body>${html}</body></html>`], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      productos.forEach(crearTabla);
+      document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('agregar-btn')) {
+          const producto = e.target.getAttribute('data-producto');
+          agregarFila(producto);
+        }
+      });
+    });
+  </script>
+</body>
+</html>
