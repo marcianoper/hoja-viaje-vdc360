@@ -30,7 +30,31 @@
       'https://lujroedkbgffobyblbie.supabase.co',
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx1anJvZWRrYmdmZm9ieWJsYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDEyOTgzNjcsImV4cCI6MTcwMTg5MzE2N30.2Rz1E1drFVFt1fwwzyuOd4ucDLZ50zMpReyVvVfvlSY'
     );
+const productos = [
+  'Cabeza de res',
+  'Tripa de res',
+  'Menudo sucio',
+  'Cuajo de res',
+  'Pata sucia',
+  'Hígado',
+  'Libro de res',
+  'Teleco',
+  'Corazón'
+];
 
+   
+    document.addEventListener('DOMContentLoaded', () => {
+  productos.forEach(crearTabla);
+  document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('agregar-btn')) {
+      const producto = e.target.getAttribute('data-producto');
+      agregarFila(producto);
+    }
+  });
+});
+
+<div id="contenedorProductos"></div>
+    
     const productos = ['Cabeza de res', 'Tripa de res', 'Menudo sucio', 'Cuajo de res', 'Pata sucia', 'Hígado', 'Libro de res', 'Teleco', 'Corazón'];
 
     function getID(producto) {
