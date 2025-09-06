@@ -26,11 +26,13 @@
   <div id="historialContainer" style="margin-top: 30px;"></div>
 
   <script>
+    /* ========= CLIENTE SUPABASE ========= */
     const supabase = window.supabase.createClient(
       'https://rcegikeiaxptolrduguc.supabase.co',
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjZWdpa2VpYXhwdG9scmR1Z3VjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2NTMyMDcsImV4cCI6MjA3MTIyOTIwN30.jbPM9F977zeITEmFA_xvVU6SCxlWWVCi3Dx7ZhFfTp8'
     );
 
+    /* ========= LISTA DE PRODUCTOS ========= */
     const productos = ['Cabeza de res', 'Tripa de res', 'Menudo sucio', 'Cuajo de res', 'Pata sucia', 'Hígado', 'Libro de res', 'Teleco', 'Corazón'];
 
     function getID(producto) {
@@ -41,17 +43,31 @@
       const id = getID(producto);
       const section = document.createElement('div');
       section.className = 'section';
-      section.innerHTML = `<h2>${producto}</h2><table id="tabla-${id}"><thead><tr><th>Kg</th><th>Piezas</th><th>Acciones</th></tr></thead><tbody></tbody></table><button class="btn agregar-btn" data-producto="${producto}">Agregar Pesada</button><p><strong>Total Kg:</strong> <span id="totalKg-${id}">0</span> | <strong>Total Pzas:</strong> <span id="totalPzas-${id}">0</span></p>`;
+      section.innerHTML = `
+        <h2>${producto}</h2>
+        <table id="tabla-${id}">
+          <thead><tr><th>Kg</th><th>Piezas</th><th>Acciones</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <button class="btn agregar-btn" data-producto="${producto}">Agregar Pesada</button>
+        <p><strong>Total Kg:</strong> <span id="totalKg-${id}">0</span> |
+           <strong>Total Pzas:</strong> <span id="totalPzas-${id}">0</span></p>`;
       document.getElementById('contenedorProductos').appendChild(section);
     }
 
-    function agregarFila(producto) {
+    /* ========= FILAS Y TOTALES ========= */
+    // (Modificada) acepta valores iniciales para restauración de borradores
+    function agregarFila(producto, kgValue = '', pzasValue = '') {
       const id = getID(producto);
       const tabla = document.querySelector(`#tabla-${id} tbody`);
       const fila = document.createElement('tr');
-      fila.innerHTML = `<td><input type="number" step="0.1" onchange="actualizarTotales('${producto}')"></td><td><input type="number" onchange="actualizarTotales('${producto}')"></td><td><button class="btn" onclick="eliminarFila(this)">Eliminar</button></td>`;
+      fila.innerHTML = `
+        <td><input type="number" step="0.1" value="${kgValue}" onchange="actualizarTotales('${producto}'); scheduleSaves();"></td>
+        <td><input type="number" value="${pzasValue}" onchange="actualizarTotales('${producto}'); scheduleSaves();"></td>
+        <td><button class="btn" onclick="eliminarFila(this)">Eliminar</button></td>`;
       tabla.appendChild(fila);
       actualizarTotales(producto);
+      scheduleSaves();
     }
 
     function eliminarFila(btn) {
@@ -59,6 +75,7 @@
       const producto = row.closest('.section').querySelector('h2').textContent;
       row.remove();
       actualizarTotales(producto);
+      scheduleSaves();
     }
 
     function actualizarTotales(producto) {
@@ -76,6 +93,7 @@
       document.getElementById(`totalPzas-${id}`).textContent = totalPzas;
     }
 
+    /* ========= GUARDAR / HISTORIAL / RESUMEN ========= */
     async function guardarViaje() {
       const fecha = document.getElementById('fechaViaje').value;
       if (!fecha) return alert("⚠️ Por favor selecciona una fecha.");
@@ -92,9 +110,24 @@
         });
       });
 
-      const { data, error } = await supabase.from('hoja_viaje').insert([{ fecha, resultados }]);
-      if (error) alert("❌ Error al guardar: " + error.message);
-      else alert("✅ Viaje guardado correctamente.");
+      // v1: usa select() para devolver la fila insertada
+      const { data, error } = await supabase
+        .from('hoja_viaje')
+        .insert([{ fecha, resultados }])
+        .select()
+        .single();
+
+      if (error) {
+        alert("❌ Error al guardar: " + error.message);
+      } else {
+        alert("✅ Viaje guardado correctamente.");
+        // Si regresa id, liga el borrador a este viaje de aquí en adelante
+        if (data && data.id) {
+          window.viaje_id = data.id;
+          await saveCloud(); // guardar bajo la nueva clave
+          saveLocal();
+        }
+      }
     }
 
     async function mostrarHistorial() {
@@ -149,17 +182,134 @@
       window.open(url, '_blank');
     }
 
+    /* ========= ARRANQUE DE UI ========= */
     document.addEventListener('DOMContentLoaded', () => {
       productos.forEach(crearTabla);
+
       document.addEventListener('click', function(e) {
         if (e.target.classList.contains('agregar-btn')) {
           const producto = e.target.getAttribute('data-producto');
           agregarFila(producto);
         }
       });
+
+      // Fecha hoy por defecto
+      document.getElementById('fechaViaje').valueAsDate = new Date();
+
+      // Arrancar borradores: nube (si hay login) + local
+      bootDrafts();
     });
+
+    /* ========= AUTOSAVE LOCAL + NUBE ========= */
+    const MODULE = 'hoja_viaje';
+
+    function getFechaISO(){ return document.getElementById('fechaViaje')?.value || new Date().toISOString().slice(0,10); }
+    function draftKey(){ return window.viaje_id ? `viaje-${window.viaje_id}` : `viaje-${getFechaISO()}`; }
+
+    function recolectarResultados(){
+      const resultados = {};
+      productos.forEach(producto => {
+        const id = getID(producto);
+        const filas = document.querySelectorAll(`#tabla-${id} tbody tr`);
+        resultados[producto] = [];
+        filas.forEach(row => {
+          const kg = parseFloat(row.children[0].children[0].value) || 0;
+          const pzas = parseFloat(row.children[1].children[0].value) || 0;
+          if (kg || pzas) resultados[producto].push({ kg, pzas });
+        });
+      });
+      return resultados;
+    }
+
+    function collectState(){
+      return { fecha: getFechaISO(), resultados: recolectarResultados() };
+    }
+
+    function aplicarResultados(resultados){
+      if(!resultados) return;
+      productos.forEach(producto => {
+        const id = getID(producto);
+        const tbody = document.querySelector(`#tabla-${id} tbody`);
+        tbody.innerHTML = '';
+        const rows = resultados[producto] || [];
+        rows.forEach(r => agregarFila(producto, r.kg || '', r.pzas || ''));
+        if(rows.length === 0) { actualizarTotales(producto); }
+      });
+    }
+
+    function applyState(state){
+      if(!state) return;
+      if(state.fecha){ document.getElementById('fechaViaje').value = state.fecha; }
+      aplicarResultados(state.resultados || {});
+    }
+
+    // LocalStorage
+    let dirty=false, tLocal=null;
+    function lkey(){ return `draft:${MODULE}:${draftKey()}`; }
+    function saveLocal(){ localStorage.setItem(lkey(), JSON.stringify({ts:Date.now(), data:collectState()})); dirty=true; }
+    function loadLocal(){ const raw=localStorage.getItem(lkey()); if(!raw) return; try{ applyState(JSON.parse(raw).data); }catch{} }
+    function clearLocal(){ localStorage.removeItem(lkey()); dirty=false; }
+
+    // Nube (v1: auth.user())
+    function currentUserId(){ try{ return supabase.auth.user()?.id || null; } catch { return null; } }
+    let tCloud=null;
+
+    function scheduleSaves(){ clearTimeout(tLocal); tLocal=setTimeout(saveLocal, 500); clearTimeout(tCloud); tCloud=setTimeout(saveCloud, 1000); }
+
+    async function saveCloud(){
+      const user_id = currentUserId(); if(!user_id) return;
+      await supabase.from('app_drafts').upsert({
+        module: MODULE,
+        draft_key: draftKey(),
+        user_id,
+        data: collectState(),
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'module,draft_key,user_id' });
+    }
+
+    async function loadCloud(){
+      const user_id = currentUserId(); if(!user_id) return;
+      const { data, error } = await supabase
+        .from('app_drafts')
+        .select('data')
+        .match({ module: MODULE, draft_key: draftKey(), user_id })
+        .single();
+      if(!error && data && data.data){ applyState(data.data); }
+    }
+
+    async function clearCloud(){
+      const user_id = currentUserId();
+      if(user_id){
+        await supabase.from('app_drafts')
+          .delete()
+          .match({ module: MODULE, draft_key: draftKey(), user_id });
+      }
+      clearLocal();
+    }
+
+    // Exponer utilidades por si agregas "Cerrar viaje"
+    window.__HOJAVIAJE_DRAFTS__ = {
+      clearDraft: clearCloud,
+      setViajeId: (id)=>{ window.viaje_id = id; loadCloud(); loadLocal(); }
+    };
+
+    // Captura cambios globales a inputs para autosave
+    document.addEventListener('input', (e)=>{
+      if (e.target.matches('input,select,textarea')) scheduleSaves();
+    });
+
+    // Aviso al salir con cambios
+    window.addEventListener('beforeunload', (e)=>{ if(!dirty) return; e.preventDefault(); e.returnValue=''; });
+
+    // Cambio de fecha: si NO hay viaje_id, usa borrador de esa fecha
+    document.getElementById('fechaViaje')?.addEventListener('change', ()=>{
+      if (!window.viaje_id){ loadCloud(); loadLocal(); }
+    });
+
+    async function bootDrafts(){
+      await loadCloud();  // si hay login
+      loadLocal();        // siempre intenta local
+    }
   </script>
 </body>
 </html>
-
-
