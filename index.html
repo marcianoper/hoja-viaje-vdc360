@@ -14,6 +14,31 @@
     th, td { border: 1px solid #ccc; padding: 6px; text-align: center; }
     input[type="number"] { width: 80px; }
     .btn { padding: 6px 12px; cursor: pointer; background-color: #28a745; color: white; border: none; border-radius: 4px; margin-top: 5px; }
+
+    /* ====== NUEVO: estilos del marcador ====== */
+    .mark-select{
+      width: 120px;
+      padding: 6px;
+      border-radius: 8px;
+      border: 1px solid #cfd3d8;
+      background: #fff;
+      font-weight: 700;
+    }
+    .row-mark-none { background: transparent; }
+    .row-mark-yellow { background: rgba(255, 235, 59, .35); }
+    .row-mark-blue { background: rgba(33, 150, 243, .20); }
+    .row-mark-green { background: rgba(76, 175, 80, .20); }
+    .row-mark-red { background: rgba(244, 67, 54, .18); }
+    .row-mark-purple { background: rgba(156, 39, 176, .16); }
+
+    .mark-pill{
+      display:inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-weight: 900;
+      font-size: 12px;
+      border: 1px solid rgba(0,0,0,.08);
+    }
   </style>
 </head>
 <body>
@@ -63,7 +88,14 @@
       section.innerHTML = `
         <h2>${producto}</h2>
         <table id="tabla-${id}">
-          <thead><tr><th>Kg</th><th>Piezas</th><th>Acciones</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Kg</th>
+              <th>Piezas</th>
+              <th>Marcador</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
           <tbody></tbody>
         </table>
         <button class="btn agregar-btn" data-producto="${producto}">Agregar Pesada</button>
@@ -72,17 +104,62 @@
       document.getElementById('contenedorProductos').appendChild(section);
     }
 
+    /* ========= NUEVO: marcador por fila ========= */
+    const MARKS = [
+      { key: 'none',   label: 'Sin marca',   cls: 'row-mark-none' },
+      { key: 'yellow', label: 'Cliente A',   cls: 'row-mark-yellow' },
+      { key: 'blue',   label: 'Cliente B',   cls: 'row-mark-blue' },
+      { key: 'green',  label: 'Cliente C',   cls: 'row-mark-green' },
+      { key: 'red',    label: 'Urgente',     cls: 'row-mark-red' },
+      { key: 'purple', label: 'Especial',    cls: 'row-mark-purple' },
+    ];
+
+    function markToClass(markKey){
+      const f = MARKS.find(m => m.key === markKey);
+      return (f ? f.cls : 'row-mark-none');
+    }
+
+    function buildMarkSelect(selectedKey = 'none'){
+      const sel = document.createElement('select');
+      sel.className = 'mark-select';
+      sel.innerHTML = MARKS.map(m => `<option value="${m.key}" ${m.key===selectedKey?'selected':''}>${m.label}</option>`).join('');
+      return sel;
+    }
+
+    function applyRowMark(row, markKey){
+      // limpiar clases previas
+      MARKS.forEach(m => row.classList.remove(m.cls));
+      row.classList.add(markToClass(markKey));
+      row.dataset.mark = markKey || 'none';
+    }
+
     /* ========= FILAS Y TOTALES ========= */
-    // (Modificada) acepta valores iniciales para restauración de borradores
-    function agregarFila(producto, kgValue = '', pzasValue = '') {
+    // (Modificada) acepta valores iniciales para restauración de borradores + marcador
+    function agregarFila(producto, kgValue = '', pzasValue = '', markKey = 'none') {
       const id = getID(producto);
       const tabla = document.querySelector(`#tabla-${id} tbody`);
       const fila = document.createElement('tr');
+
+      const markSelect = buildMarkSelect(markKey);
+
+      markSelect.addEventListener('change', () => {
+        applyRowMark(fila, markSelect.value);
+        scheduleSaves();
+      });
+
       fila.innerHTML = `
         <td><input type="number" step="0.1" value="${kgValue}" onchange="actualizarTotales('${producto}'); scheduleSaves();"></td>
         <td><input type="number" value="${pzasValue}" onchange="actualizarTotales('${producto}'); scheduleSaves();"></td>
+        <td class="mark-cell"></td>
         <td><button class="btn" onclick="eliminarFila(this)">Eliminar</button></td>`;
+
+      fila.querySelector('.mark-cell').appendChild(markSelect);
+
       tabla.appendChild(fila);
+
+      // aplicar color al crear
+      applyRowMark(fila, markKey || 'none');
+
       actualizarTotales(producto);
       scheduleSaves();
     }
@@ -123,7 +200,8 @@
         filas.forEach(row => {
           const kg = parseFloat(row.children[0].children[0].value) || 0;
           const pzas = parseFloat(row.children[1].children[0].value) || 0;
-          resultados[producto].push({ kg, pzas });
+          const mark = row.dataset.mark || 'none';
+          resultados[producto].push({ kg, pzas, mark }); // <-- NUEVO: guardar mark
         });
       });
 
@@ -232,7 +310,8 @@
         filas.forEach(row => {
           const kg = parseFloat(row.children[0].children[0].value) || 0;
           const pzas = parseFloat(row.children[1].children[0].value) || 0;
-          if (kg || pzas) resultados[producto].push({ kg, pzas });
+          const mark = row.dataset.mark || 'none';
+          if (kg || pzas) resultados[producto].push({ kg, pzas, mark }); // <-- NUEVO
         });
       });
       return resultados;
@@ -249,7 +328,7 @@
         const tbody = document.querySelector(`#tabla-${id} tbody`);
         tbody.innerHTML = '';
         const rows = resultados[producto] || [];
-        rows.forEach(r => agregarFila(producto, r.kg || '', r.pzas || ''));
+        rows.forEach(r => agregarFila(producto, r.kg || '', r.pzas || '', r.mark || 'none')); // <-- NUEVO
         if(rows.length === 0) { actualizarTotales(producto); }
       });
     }
