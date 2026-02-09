@@ -161,7 +161,6 @@
       </div>
       <span id="pesoStatus" class="peso-status">CONECTANDO</span>
 
-      <button class="btn secondary" type="button" onclick="leerPesoManual()">Actualizar ahora</button>
     </div>
 
     <p class="muted" style="margin-top:8px;">
@@ -179,17 +178,27 @@
   <div id="historialContainer" style="margin-top: 30px;"></div>
 
   <!-- ===== NUEVO: Barra flotante siempre visible ===== -->
-  <div class="peso-floatbar">
-    <div class="peso-float-left">
-      <span class="peso-mini">Peso: <span id="pesoLiveMini">--</span> kg</span>
-      <span id="pesoStatusMini" class="peso-status">CONECTANDO</span>
-      <span class="peso-help">Selecciona un input de Kg y presiona el botón</span>
-    </div>
+<div class="peso-floatbar">
+  <div class="peso-float-left">
+    <span class="peso-mini">
+      Peso: <span id="pesoLiveMini">--</span> kg
+    </span>
+    <span id="pesoStatusMini" class="peso-status">CONECTANDO</span>
+    <span class="peso-help">
+      Selecciona un input de Kg
+    </span>
+  </div>
+
+  <div style="display:flex; gap:10px;">
+    <button class="btn secondary" type="button" onclick="leerPesoManual()">
+      🔄 Actualizar peso
+    </button>
 
     <button class="btn" type="button" onclick="tomarPesoEnInputActivo()">
-      Usar este peso
+      ⬇ Usar este peso
     </button>
   </div>
+</div>
 
   <script>
     /* ========= CLIENTE SUPABASE ========= */
