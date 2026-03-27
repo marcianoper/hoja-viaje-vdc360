@@ -32,11 +32,10 @@
         radial-gradient(1000px 520px at 110% 20%, rgba(10,122,59,.14), transparent 50%),
         var(--bg);
       color: var(--ink);
-      padding-bottom: 120px; /* espacio barra báscula */
+      padding-bottom: 120px;
     }
     a{ color:inherit; }
 
-    /* Topbar */
     .topbar{
       position: sticky;
       top:0;
@@ -87,7 +86,6 @@
       justify-content:flex-end;
     }
 
-    /* Buttons */
     .btn{
       padding: 10px 14px;
       cursor: pointer;
@@ -99,9 +97,7 @@
       box-shadow: 0 10px 20px rgba(0,0,0,.12);
     }
     .btn:active{ transform: translateY(1px); }
-    .btn.secondary{
-      background:#111827;
-    }
+    .btn.secondary{ background:#111827; }
     .btn.ghost{
       background:#fff;
       color:#111827;
@@ -110,7 +106,6 @@
     }
     .btn.danger{ background: var(--danger); }
 
-    /* Layout */
     .wrap{
       max-width: 1400px;
       margin: 0 auto;
@@ -142,12 +137,9 @@
       font-weight: 1000;
       letter-spacing: .2px;
     }
-    .card-b{
-      padding: 14px;
-    }
+    .card-b{ padding: 14px; }
     .muted{ color: var(--muted); font-size: 12px; font-weight: 700; }
 
-    /* Sidebar products */
     .search{
       width: 100%;
       padding: 10px 12px;
@@ -193,7 +185,6 @@
       white-space: nowrap;
     }
 
-    /* Main content */
     .main-header{
       display:flex;
       align-items:center;
@@ -204,7 +195,8 @@
       border-bottom: 1px solid rgba(0,0,0,.06);
     }
     .ph{
-      display:flex; flex-direction:column;
+      display:flex;
+      flex-direction:column;
       gap:4px;
     }
     .pname{
@@ -228,7 +220,7 @@
       background: #f8fafc;
       color:#0f172a;
       position: sticky;
-      top: 68px; /* debajo topbar sticky */
+      top: 68px;
       z-index: 10;
     }
     input[type="number"]{
@@ -246,7 +238,6 @@
       font-weight: 1000;
     }
 
-    /* Mark select */
     .mark-select{
       width: 150px;
       padding: 10px 12px;
@@ -263,7 +254,6 @@
     .row-mark-purple { background: rgba(156, 39, 176, .16); }
     .row-mark-black { background: rgba(0, 0, 0, .15); }
 
-    /* Realtime pill */
     .rt-pill{
       display:inline-block;
       padding: 6px 12px;
@@ -279,7 +269,6 @@
       color:#b91c1c;
     }
 
-    /* Bascula box */
     .bascula-box{
       display:flex;
       gap:10px;
@@ -310,7 +299,6 @@
       color:#b91c1c;
     }
 
-    /* Float bar */
     .peso-floatbar{
       position: fixed;
       left: 16px;
@@ -326,8 +314,6 @@
       align-items: center;
       justify-content: space-between;
       gap: 10px;
-
-      /* ✅ Para que el ajuste por teclado sea suave */
       transition: transform .12s ease;
       will-change: transform;
     }
@@ -343,14 +329,12 @@
     }
     .peso-help{ font-size: 12px; color: var(--muted); font-weight: 900; }
 
-    /* Mobile */
     @media(max-width: 980px){
       .grid{ grid-template-columns: 1fr; }
       th{ top: 120px; }
       .plist{ max-height: 280px; }
     }
 
-    /* Central button */
     .back-central{
       position:fixed;
       top:12px;
@@ -363,6 +347,19 @@
       font-weight:1000;
       z-index:9999;
       box-shadow:0 10px 20px rgba(0,0,0,.15);
+    }
+
+    .mini-hint{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 10px;
+      border-radius:12px;
+      background:#f8fafc;
+      border:1px solid rgba(0,0,0,.06);
+      font-size:12px;
+      color:var(--muted);
+      font-weight:900;
     }
   </style>
 </head>
@@ -397,7 +394,6 @@
   <div class="wrap">
     <div class="grid">
 
-      <!-- Sidebar -->
       <div class="card">
         <div class="card-h">
           <h2>Productos</h2>
@@ -407,14 +403,12 @@
           <input class="search" id="prodSearch" placeholder="Buscar producto…" />
           <div class="plist" id="plist"></div>
           <div style="margin-top:12px" class="muted">
-            Tip: cambia de producto y sigue capturando sin moverte.
+            Tip: Ctrl + ← / Ctrl + → cambia de producto rápido.
           </div>
         </div>
       </div>
 
-      <!-- Main -->
       <div class="card">
-
         <div class="main-header">
           <div class="ph">
             <div class="pname" id="activeProductName">—</div>
@@ -422,20 +416,25 @@
               Total: <span id="activeTotalKg">0.0</span> kg · <span id="activeTotalPzas">0</span> pzas
             </div>
 
-            <!-- Totales por marca -->
             <div class="ptotals" id="activeTotalsByMark" style="margin-top:6px;">
               Sin marcas aún.
+            </div>
+
+            <div style="margin-top:6px; display:flex; gap:8px; flex-wrap:wrap;">
+              <span class="mini-hint">Enter = siguiente pesada</span>
+              <span class="mini-hint">Shift + Enter = ir a piezas</span>
             </div>
           </div>
 
           <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="btn ghost" type="button" onclick="productoAnterior()">← Producto</button>
+            <button class="btn ghost" type="button" onclick="productoSiguiente()">Producto →</button>
             <button class="btn secondary" type="button" onclick="agregarFilaProductoActivo()">+ Agregar pesada</button>
             <button class="btn ghost" type="button" onclick="scrollTablaTop()">Ir arriba</button>
           </div>
         </div>
 
         <div class="card-b">
-          <!-- Báscula -->
           <div class="bascula-box">
             <div>
               <div class="muted" style="margin-bottom:6px;">Báscula en vivo</div>
@@ -450,7 +449,6 @@
             </div>
           </div>
 
-          <!-- Tabla solo del producto activo -->
           <div style="margin-top:14px;">
             <table id="tablaActiva">
               <thead>
@@ -466,7 +464,7 @@
 
             <div style="margin-top:12px; display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;">
               <div class="muted">
-                Consejo: si estás en “Cuajo”, ya no necesitas ir al final de la página.
+                Consejo: puedes capturar casi todo con Enter y flechas.
               </div>
               <div style="font-weight:1100;">
                 Total Kg: <span id="activeTotalKg2">0.0</span> · Total Pzas: <span id="activeTotalPzas2">0</span>
@@ -476,12 +474,10 @@
 
           <div id="historialContainer" style="margin-top: 18px;"></div>
         </div>
-
       </div>
     </div>
   </div>
 
-  <!-- Barra flotante báscula -->
   <div class="peso-floatbar" id="pesoFloatbar">
     <div class="peso-float-left">
       <span class="peso-mini">Peso: <span id="pesoLiveMini">--</span> kg</span>
@@ -496,7 +492,6 @@
   </div>
 
   <script>
-    /* ========= SUPABASE ========= */
     const supabase = window.supabase.createClient(
       'https://rcegikeiaxptolrduguc.supabase.co',
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjZWdpa2VpYXhwdG9scmR1Z3VjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2NTMyMDcsImV4cCI6MjA3MTIyOTIwN30.jbPM9F977zeITEmFA_xvVU6SCxlWWVCi3Dx7ZhFfTp8'
@@ -525,15 +520,14 @@
       return new Date(d - z).toISOString().slice(0,10);
     }
 
-    /* ========= MARKS ========= */
     const MARKS = [
       { key: 'none',   label: 'Sin marca',   cls: 'row-mark-none' },
-      { key: 'yellow', label: 'Sosa',   cls: 'row-mark-yellow' },
-      { key: 'blue',   label: 'Carillo',   cls: 'row-mark-blue' },
-      { key: 'green',  label: 'Angelica',   cls: 'row-mark-green' },
-      { key: 'red',    label: 'Leonardo',     cls: 'row-mark-red' },
-      { key: 'purple', label: 'Mostrador',    cls: 'row-mark-purple' },
-      { key: 'black', label: 'Gorda',    cls: 'row-mark-black' },
+      { key: 'yellow', label: 'Sosa',        cls: 'row-mark-yellow' },
+      { key: 'blue',   label: 'Carillo',     cls: 'row-mark-blue' },
+      { key: 'green',  label: 'Angelica',    cls: 'row-mark-green' },
+      { key: 'red',    label: 'Leonardo',    cls: 'row-mark-red' },
+      { key: 'purple', label: 'Mostrador',   cls: 'row-mark-purple' },
+      { key: 'black',  label: 'Gorda',       cls: 'row-mark-black' },
     ];
 
     function markToClass(markKey){
@@ -552,7 +546,6 @@
       row.dataset.mark = markKey || 'none';
     }
 
-    /* ========= STATE ========= */
     let state = {
       fecha: todayISO(),
       resultados: {}
@@ -567,7 +560,24 @@
       updateActiveTotals();
     }
 
-    /* ========= SIDEBAR ========= */
+    function getActiveProductIndex(){
+      return productos.indexOf(activeProduct);
+    }
+
+    function productoAnterior(){
+      const idx = getActiveProductIndex();
+      if(idx <= 0) return;
+      setActiveProduct(productos[idx - 1]);
+      focusLastKgInput(true);
+    }
+
+    function productoSiguiente(){
+      const idx = getActiveProductIndex();
+      if(idx < 0 || idx >= productos.length - 1) return;
+      setActiveProduct(productos[idx + 1]);
+      focusLastKgInput(true);
+    }
+
     function renderSidebar(){
       const list = $('#plist');
       if(!list) return;
@@ -590,7 +600,69 @@
     }
     $('#prodSearch')?.addEventListener('input', renderSidebar);
 
-    /* ========= TABLA ACTIVA ========= */
+    function focusLastKgInput(selectAll = true){
+      setTimeout(()=>{
+        const inputs = document.querySelectorAll('#tablaActiva .kg-input');
+        if(!inputs.length) return;
+        const last = inputs[inputs.length - 1];
+        last.focus();
+        if(selectAll && typeof last.select === 'function') last.select();
+      }, 60);
+    }
+
+    function focusInputByIndex(rowIndex, field = 'kg'){
+      setTimeout(()=>{
+        const tbody = document.querySelector('#tablaActiva tbody');
+        if(!tbody) return;
+
+        const rows = tbody.querySelectorAll('tr');
+        if(!rows.length) return;
+
+        if(rowIndex < 0) rowIndex = 0;
+        if(rowIndex > rows.length - 1) rowIndex = rows.length - 1;
+
+        const tr = rows[rowIndex];
+        if(!tr) return;
+
+        let target = null;
+        if(field === 'kg') target = tr.querySelector('.kg-input');
+        if(field === 'pzas') target = tr.querySelector('.pzas-input');
+        if(field === 'mark') target = tr.querySelector('.mark-select');
+
+        if(target){
+          target.focus();
+          if(typeof target.select === 'function' && target.tagName === 'INPUT'){
+            target.select();
+          }
+        }
+      }, 60);
+    }
+
+    function addRow(producto, kgValue='', pzasValue='', markKey='none'){
+      state.resultados[producto] = state.resultados[producto] || [];
+      state.resultados[producto].push({
+        kg: (parseFloat(kgValue) || 0),
+        pzas: (parseFloat(pzasValue) || 0),
+        mark: markKey
+      });
+    }
+
+    function agregarFilaProductoActivo(){
+      addRow(activeProduct);
+      renderActiveTable();
+      updateActiveTotals();
+      scheduleSaves();
+      focusLastKgInput(true);
+    }
+
+    function agregarFilaProductoActivoYEnfocar(markKey = 'none'){
+      addRow(activeProduct, '', '', markKey);
+      renderActiveTable();
+      updateActiveTotals();
+      scheduleSaves();
+      focusLastKgInput(true);
+    }
+
     function renderActiveTable(){
       $('#activeProductName').textContent = activeProduct;
 
@@ -607,31 +679,116 @@
         kgIn.className = 'kg-input';
         kgIn.type = 'number';
         kgIn.step = '0.1';
+        kgIn.inputMode = 'decimal';
         kgIn.value = (r.kg ?? '');
+
+        kgIn.addEventListener('focus', ()=>{
+          if(typeof kgIn.select === 'function') kgIn.select();
+        });
+
         kgIn.addEventListener('input', ()=>{
-          state.resultados[activeProduct][idx].kg = parseFloat(kgIn.value)||0;
+          state.resultados[activeProduct][idx].kg = parseFloat(kgIn.value) || 0;
           updateActiveTotals();
           scheduleSaves();
+        });
+
+        kgIn.addEventListener('keydown', (e)=>{
+          if(e.key === 'Enter'){
+            e.preventDefault();
+
+            if(e.shiftKey){
+              focusInputByIndex(idx, 'pzas');
+              return;
+            }
+
+            const currentMark = state.resultados[activeProduct][idx]?.mark || 'none';
+            agregarFilaProductoActivoYEnfocar(currentMark);
+            return;
+          }
+
+          if(e.key === 'ArrowDown'){
+            e.preventDefault();
+            focusInputByIndex(idx + 1, 'kg');
+          }
+
+          if(e.key === 'ArrowUp'){
+            e.preventDefault();
+            focusInputByIndex(idx - 1, 'kg');
+          }
+
+          if(e.key === 'ArrowRight' && typeof kgIn.selectionStart === 'number' && kgIn.selectionStart === kgIn.value.length){
+            focusInputByIndex(idx, 'pzas');
+          }
         });
 
         const pzTd = document.createElement('td');
         const pzIn = document.createElement('input');
+        pzIn.className = 'pzas-input';
         pzIn.type = 'number';
+        pzIn.inputMode = 'numeric';
         pzIn.value = (r.pzas ?? '');
+
+        pzIn.addEventListener('focus', ()=>{
+          if(typeof pzIn.select === 'function') pzIn.select();
+        });
+
         pzIn.addEventListener('input', ()=>{
-          state.resultados[activeProduct][idx].pzas = parseFloat(pzIn.value)||0;
+          state.resultados[activeProduct][idx].pzas = parseFloat(pzIn.value) || 0;
           updateActiveTotals();
           scheduleSaves();
         });
 
+        pzIn.addEventListener('keydown', (e)=>{
+          if(e.key === 'Enter'){
+            e.preventDefault();
+            const currentMark = state.resultados[activeProduct][idx]?.mark || 'none';
+            agregarFilaProductoActivoYEnfocar(currentMark);
+            return;
+          }
+
+          if(e.key === 'ArrowDown'){
+            e.preventDefault();
+            focusInputByIndex(idx + 1, 'pzas');
+          }
+
+          if(e.key === 'ArrowUp'){
+            e.preventDefault();
+            focusInputByIndex(idx - 1, 'pzas');
+          }
+
+          if(e.key === 'ArrowLeft' && typeof pzIn.selectionStart === 'number' && pzIn.selectionStart === 0){
+            focusInputByIndex(idx, 'kg');
+          }
+        });
+
         const mkTd = document.createElement('td');
         const sel = buildMarkSelect(r.mark || 'none');
+
         sel.addEventListener('change', ()=>{
           state.resultados[activeProduct][idx].mark = sel.value;
           applyRowMark(tr, sel.value);
           updateActiveTotals();
           scheduleSaves();
         });
+
+        sel.addEventListener('keydown', (e)=>{
+          if(e.key === 'Enter'){
+            e.preventDefault();
+            const currentMark = sel.value || 'none';
+            agregarFilaProductoActivoYEnfocar(currentMark);
+          }
+
+          if(e.key === 'ArrowDown'){
+            e.preventDefault();
+            focusInputByIndex(idx + 1, 'mark');
+          }
+
+          if(e.key === 'ArrowUp'){
+            e.preventDefault();
+            focusInputByIndex(idx - 1, 'mark');
+          }
+        });
+
         mkTd.appendChild(sel);
 
         const actTd = document.createElement('td');
@@ -639,12 +796,27 @@
         del.className = 'btn danger';
         del.type = 'button';
         del.textContent = 'Eliminar';
+
         del.onclick = () => {
-          state.resultados[activeProduct].splice(idx,1);
+          state.resultados[activeProduct].splice(idx, 1);
+
+          if((state.resultados[activeProduct] || []).length === 0){
+            addRow(activeProduct);
+            renderActiveTable();
+            updateActiveTotals();
+            scheduleSaves();
+            focusLastKgInput(true);
+            return;
+          }
+
           renderActiveTable();
           updateActiveTotals();
           scheduleSaves();
+
+          const nextIndex = Math.max(0, idx - 1);
+          focusInputByIndex(nextIndex, 'kg');
         };
+
         actTd.appendChild(del);
 
         kgTd.appendChild(kgIn);
@@ -661,30 +833,16 @@
 
       if(rows.length === 0){
         addRow(activeProduct);
+        renderActiveTable();
+        focusLastKgInput(true);
+        return;
       }
-    }
-
-    function addRow(producto, kgValue='', pzasValue='', markKey='none'){
-      state.resultados[producto] = state.resultados[producto] || [];
-      state.resultados[producto].push({ kg: (parseFloat(kgValue)||0), pzas: (parseFloat(pzasValue)||0), mark: markKey });
-    }
-
-    function agregarFilaProductoActivo(){
-      addRow(activeProduct);
-      renderActiveTable();
-      updateActiveTotals();
-      scheduleSaves();
-      setTimeout(()=>{
-        const inputs = document.querySelectorAll('#tablaActiva .kg-input');
-        if(inputs.length) inputs[inputs.length-1].focus();
-      }, 50);
     }
 
     function scrollTablaTop(){
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    /* ========= TOTALES ========= */
     function calcTotals(producto){
       const rows = state.resultados[producto] || [];
       let kg=0, pzas=0;
@@ -754,7 +912,6 @@
       renderActiveTotalsByMark();
     }
 
-    /* ========= RECOLECTAR ========= */
     function recolectarResultados(){
       const resultados = {};
       productos.forEach(p=>{
@@ -765,7 +922,6 @@
       return resultados;
     }
 
-    /* ========= GUARDAR / HISTORIAL / RESUMEN ========= */
     async function guardarViaje() {
       const fecha = $('#fechaViaje').value;
       if (!fecha) return alert("⚠️ Por favor selecciona una fecha.");
@@ -842,7 +998,6 @@
       window.open(url, '_blank');
     }
 
-    /* ========= LIVE (estado hoja) ========= */
     const MODULE = 'hoja_viaje';
     let dirty=false, tLocal=null, tLive=null;
     let rtSub = null;
@@ -981,7 +1136,6 @@
       subscribeLive();
     });
 
-    /* ========= BÁSCULA ========= */
     let pesoActual = null;
     let pesoSub = null;
     let lastFocusedKgInput = null;
@@ -1040,15 +1194,32 @@
         alert("Aún no hay peso. Presiona 'Actualizar' o espera el realtime.");
         return;
       }
+
       const target = lastFocusedKgInput || document.querySelector('.kg-input:focus');
       if(!target){
         alert("Primero haz click en un input de Kg y luego presiona 'Usar este peso'.");
         return;
       }
+
       target.value = Number(pesoActual).toFixed(2);
       target.dispatchEvent(new Event('input', { bubbles:true }));
       target.dispatchEvent(new Event('change', { bubbles:true }));
       scheduleSaves();
+
+      const tbody = document.querySelector('#tablaActiva tbody');
+      const tr = target.closest('tr');
+      if(!tbody || !tr) return;
+
+      const rows = Array.from(tbody.querySelectorAll('tr'));
+      const idx = rows.indexOf(tr);
+      const currentMarkSel = tr.querySelector('.mark-select');
+      const currentMark = currentMarkSel ? currentMarkSel.value : 'none';
+
+      if(idx === rows.length - 1){
+        agregarFilaProductoActivoYEnfocar(currentMark);
+      }else{
+        focusInputByIndex(idx + 1, 'kg');
+      }
     }
 
     function subscribeBascula(){
@@ -1078,7 +1249,6 @@
         });
     }
 
-    /* ========= FIX ANDROID KEYBOARD (Galaxy) ========= */
     function setupKeyboardSafeFloatbar(){
       const bar = document.getElementById('pesoFloatbar');
       if(!bar) return;
@@ -1097,7 +1267,6 @@
       setTimeout(update, 50);
     }
 
-    /* Opcional: que el input enfocado quede visible */
     function setupKeepFocusedInputVisible(){
       document.addEventListener('focusin', (e)=>{
         const el = e.target;
@@ -1110,13 +1279,37 @@
       });
     }
 
-    /* ========= INIT ========= */
+    function setupGlobalShortcuts(){
+      document.addEventListener('keydown', (e)=>{
+        const tag = (e.target?.tagName || '').toUpperCase();
+        const isTyping = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+
+        if(e.ctrlKey && e.key === 'ArrowRight'){
+          e.preventDefault();
+          productoSiguiente();
+          return;
+        }
+
+        if(e.ctrlKey && e.key === 'ArrowLeft'){
+          e.preventDefault();
+          productoAnterior();
+          return;
+        }
+
+        if(!isTyping && e.key.toLowerCase() === 'n'){
+          e.preventDefault();
+          agregarFilaProductoActivo();
+        }
+      });
+    }
+
     document.addEventListener('DOMContentLoaded', async ()=>{
       $('#fechaViaje').value = todayISO();
       state.fecha = $('#fechaViaje').value;
 
-      setupKeyboardSafeFloatbar();       // ✅ nuevo
-      setupKeepFocusedInputVisible();    // ✅ opcional recomendado
+      setupKeyboardSafeFloatbar();
+      setupKeepFocusedInputVisible();
+      setupGlobalShortcuts();
 
       await loadLive();
 
@@ -1131,16 +1324,6 @@
       await leerPesoManual();
       subscribeBascula();
     });
-
-    /* ====== stubs para evitar errores si te faltaban ======
-       (si ya las tienes en tu versión, puedes borrar estas 3)
-    */
-    function setRtPill(on, text){
-      const pill = document.getElementById('rt');
-      if(!pill) return;
-      pill.textContent = text || (on ? 'REAL TIME' : 'RT OFF');
-      pill.classList.toggle('off', !on);
-    }
   </script>
 </body>
 </html>
