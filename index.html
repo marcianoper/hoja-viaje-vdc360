@@ -21,6 +21,8 @@
       --shadow2:0 10px 24px rgba(2,6,23,.10);
       --r:18px;
       --danger:#b91c1c;
+      --warn:#b45309;
+      --ok:#166534;
     }
     *{ box-sizing:border-box; }
     html,body{ height:100%; }
@@ -52,6 +54,7 @@
       align-items:center;
       justify-content: space-between;
       gap:12px;
+      flex-wrap: wrap;
     }
     .brand{
       display:flex; align-items:center; gap:10px;
@@ -105,6 +108,7 @@
       box-shadow:none;
     }
     .btn.danger{ background: var(--danger); }
+    .btn.warn{ background: var(--warn); }
 
     .wrap{
       max-width: 1400px;
@@ -246,6 +250,7 @@
       background:#fff;
       font-weight: 1000;
     }
+
     .row-mark-none { background: transparent; }
     .row-mark-yellow { background: rgba(255, 235, 59, .35); }
     .row-mark-blue { background: rgba(33, 150, 243, .20); }
@@ -253,7 +258,8 @@
     .row-mark-green { background: rgba(76, 175, 80, .20); }
     .row-mark-red { background: rgba(244, 67, 54, .18); }
     .row-mark-purple { background: rgba(156, 39, 176, .16); }
-    .row-mark-black { background: rgba(0, 0, 0, .15); }
+    .row-mark-black { background: rgba(0, 0, 0, .15); color:#111; }
+    .row-mark-brown { background: rgba(121, 85, 72, .18); }
 
     .rt-pill{
       display:inline-block;
@@ -317,6 +323,7 @@
       gap: 10px;
       transition: transform .12s ease;
       will-change: transform;
+      flex-wrap: wrap;
     }
     .peso-float-left{
       display:flex;
@@ -330,10 +337,30 @@
     }
     .peso-help{ font-size: 12px; color: var(--muted); font-weight: 900; }
 
-    @media(max-width: 980px){
-      .grid{ grid-template-columns: 1fr; }
-      th{ top: 120px; }
-      .plist{ max-height: 280px; }
+    .mini-hint{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 10px;
+      border-radius:12px;
+      background:#f8fafc;
+      border:1px solid rgba(0,0,0,.06);
+      font-size:12px;
+      color:var(--muted);
+      font-weight:900;
+    }
+
+    .status-note{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 12px;
+      border-radius:12px;
+      background:#f8fafc;
+      border:1px solid rgba(0,0,0,.06);
+      font-size:12px;
+      font-weight:1000;
+      color:#0f172a;
     }
 
     .back-central{
@@ -350,17 +377,15 @@
       box-shadow:0 10px 20px rgba(0,0,0,.15);
     }
 
-    .mini-hint{
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      padding:8px 10px;
-      border-radius:12px;
-      background:#f8fafc;
-      border:1px solid rgba(0,0,0,.06);
-      font-size:12px;
-      color:var(--muted);
-      font-weight:900;
+    @media(max-width: 980px){
+      .grid{ grid-template-columns: 1fr; }
+      th{ top: 120px; }
+      .plist{ max-height: 280px; }
+      .back-central{
+        position:static;
+        display:inline-block;
+        margin:12px 12px 0;
+      }
     }
   </style>
 </head>
@@ -374,7 +399,7 @@
         <div class="badge"><span class="dot"></span> VDC360°</div>
         <div>
           <div class="title">Hoja de Viaje</div>
-          <div class="subtitle">Captura rápida por producto (sin scroll)</div>
+          <div class="subtitle">Realtime por pesada individual</div>
         </div>
       </div>
 
@@ -383,11 +408,13 @@
           Fecha:
           <input type="date" id="fechaViaje" />
         </label>
+
         <span id="rt" class="rt-pill">REAL TIME</span>
+        <span id="syncInfo" class="status-note">Sincronizando por filas</span>
 
         <button class="btn ghost" type="button" onclick="mostrarHistorial()">Historial</button>
         <button class="btn ghost" type="button" onclick="generarResumenTotales()">Documento Totales</button>
-        <button class="btn" type="button" onclick="guardarViaje()">Guardar Viaje</button>
+        <button class="btn" type="button" onclick="sincronizarAhora()">Sincronizar ahora</button>
       </div>
     </div>
   </div>
@@ -500,7 +527,7 @@
 
     const BASCULA_TABLE = 'bascula_live';
     const BASCULA_ID = 'torrey_1';
-    const LIVE_TABLE = 'hoja_viaje_live';
+    const ITEMS_TABLE = 'hoja_viaje_items';
 
     const DEVICE_ID = (() => {
       const k = 'vdc_device_id';
@@ -512,39 +539,63 @@
       return v;
     })();
 
-    const productos = ['Cabeza de res', 'Tripa de res', 'Menudo sucio', 'Cuajo de res', 'Pata sucia', 'Hígado', 'Libro de res', 'Teleco', 'Corazón','Bofe','aldilla'];
+    const productos = [
+      'Cabeza de res',
+      'Tripa de res',
+      'Menudo sucio',
+      'Cuajo de res',
+      'Pata sucia',
+      'Hígado',
+      'Libro de res',
+      'Teleco',
+      'Corazón',
+      'Bofe',
+      'aldilla'
+    ];
 
     function $(s){ return document.querySelector(s); }
+
     function todayISO(){
       const d = new Date();
       const z = d.getTimezoneOffset() * 60000;
       return new Date(d - z).toISOString().slice(0,10);
     }
 
+    function newUUID(){
+      if(window.crypto?.randomUUID) return window.crypto.randomUUID();
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    }
+
     const MARKS = [
-      { key: 'none',   label: 'Sin marca',   cls: 'row-mark-none' },
-      { key: 'yellow', label: 'Sosa',        cls: 'row-mark-yellow' },
-      { key: 'blue',   label: 'Carillo',     cls: 'row-mark-blue' },
-      { key: 'chato',   label: 'Chato',     cls: 'row-mark-blue' },
-      { key: 'green',  label: 'Angelica',    cls: 'row-mark-green' },
-      { key: 'red',    label: 'Leonardo',    cls: 'row-mark-red' },
-       { key: 'Granja',    label: 'Granja',    cls: 'row-mark-red' },
-      { key: 'pink',  label: 'Otomi',       cls: 'row-mark-pink' },
-      { key: 'purple', label: 'Mostrador',   cls: 'row-mark-purple' },
-      { key: 'black',  label: 'Gorda',       cls: 'row-mark-black' },
-       { key: 'brown',  label: 'Almacen',       cls: 'row-mark-brown' },
+      { key: 'none',   label: 'Sin marca', cls: 'row-mark-none' },
+      { key: 'yellow', label: 'Sosa',      cls: 'row-mark-yellow' },
+      { key: 'blue',   label: 'Carillo',   cls: 'row-mark-blue' },
+      { key: 'chato',  label: 'Chato',     cls: 'row-mark-blue' },
+      { key: 'green',  label: 'Angelica',  cls: 'row-mark-green' },
+      { key: 'red',    label: 'Leonardo',  cls: 'row-mark-red' },
+      { key: 'granja', label: 'Granja',    cls: 'row-mark-red' },
+      { key: 'pink',   label: 'Otomi',     cls: 'row-mark-pink' },
+      { key: 'purple', label: 'Mostrador', cls: 'row-mark-purple' },
+      { key: 'black',  label: 'Gorda',     cls: 'row-mark-black' },
+      { key: 'brown',  label: 'Almacen',   cls: 'row-mark-brown' }
     ];
 
     function markToClass(markKey){
       const f = MARKS.find(m => m.key === markKey);
-      return (f ? f.cls : 'row-mark-none');
+      return f ? f.cls : 'row-mark-none';
     }
+
     function buildMarkSelect(selectedKey = 'none'){
       const sel = document.createElement('select');
       sel.className = 'mark-select';
       sel.innerHTML = MARKS.map(m => `<option value="${m.key}" ${m.key===selectedKey?'selected':''}>${m.label}</option>`).join('');
       return sel;
     }
+
     function applyRowMark(row, markKey){
       MARKS.forEach(m => row.classList.remove(m.cls));
       row.classList.add(markToClass(markKey));
@@ -555,8 +606,23 @@
       fecha: todayISO(),
       resultados: {}
     };
-    productos.forEach(p => state.resultados[p] = []);
+
     let activeProduct = productos[0];
+    let rtSub = null;
+    let pesoSub = null;
+    let lastFocusedKgInput = null;
+    let pesoActual = null;
+
+    const rowSaveTimers = new Map();
+    const rowVersionMap = new Map();
+
+    function ensureProductState(){
+      productos.forEach(p => {
+        if(!Array.isArray(state.resultados[p])) state.resultados[p] = [];
+      });
+    }
+
+    ensureProductState();
 
     function setActiveProduct(p){
       activeProduct = p;
@@ -583,6 +649,22 @@
       focusLastKgInput(true);
     }
 
+    function getFechaISO(){
+      return $('#fechaViaje')?.value || todayISO();
+    }
+
+    function setSyncInfo(text){
+      const el = $('#syncInfo');
+      if(el) el.textContent = text;
+    }
+
+    function setRtPill(on, text){
+      const pill = $('#rt');
+      if(!pill) return;
+      pill.textContent = text || (on ? 'REAL TIME' : 'RT OFF');
+      pill.classList.toggle('off', !on);
+    }
+
     function renderSidebar(){
       const list = $('#plist');
       if(!list) return;
@@ -603,6 +685,7 @@
           list.appendChild(div);
         });
     }
+
     $('#prodSearch')?.addEventListener('input', renderSidebar);
 
     function focusLastKgInput(selectAll = true){
@@ -643,229 +726,34 @@
       }, 60);
     }
 
-    function addRow(producto, kgValue='', pzasValue='', markKey='none'){
-      state.resultados[producto] = state.resultados[producto] || [];
-      state.resultados[producto].push({
-        kg: (parseFloat(kgValue) || 0),
-        pzas: (parseFloat(pzasValue) || 0),
-        mark: markKey
-      });
-    }
-
-    function agregarFilaProductoActivo(){
-      addRow(activeProduct);
-      renderActiveTable();
-      updateActiveTotals();
-      scheduleSaves();
-      focusLastKgInput(true);
-    }
-
-    function agregarFilaProductoActivoYEnfocar(markKey = 'none'){
-      addRow(activeProduct, '', '', markKey);
-      renderActiveTable();
-      updateActiveTotals();
-      scheduleSaves();
-      focusLastKgInput(true);
-    }
-
-    function renderActiveTable(){
-      $('#activeProductName').textContent = activeProduct;
-
-      const tbody = $('#tablaActiva tbody');
-      tbody.innerHTML = '';
-
-      const rows = state.resultados[activeProduct] || [];
-
-      rows.forEach((r, idx) => {
-        const tr = document.createElement('tr');
-
-        const kgTd = document.createElement('td');
-        const kgIn = document.createElement('input');
-        kgIn.className = 'kg-input';
-        kgIn.type = 'number';
-        kgIn.step = '0.1';
-        kgIn.inputMode = 'decimal';
-        kgIn.value = (r.kg ?? '');
-
-        kgIn.addEventListener('focus', ()=>{
-          if(typeof kgIn.select === 'function') kgIn.select();
-        });
-
-        kgIn.addEventListener('input', ()=>{
-          state.resultados[activeProduct][idx].kg = parseFloat(kgIn.value) || 0;
-          updateActiveTotals();
-          scheduleSaves();
-        });
-
-        kgIn.addEventListener('keydown', (e)=>{
-          if(e.key === 'Enter'){
-            e.preventDefault();
-
-            if(e.shiftKey){
-              focusInputByIndex(idx, 'pzas');
-              return;
-            }
-
-            const currentMark = state.resultados[activeProduct][idx]?.mark || 'none';
-            agregarFilaProductoActivoYEnfocar(currentMark);
-            return;
-          }
-
-          if(e.key === 'ArrowDown'){
-            e.preventDefault();
-            focusInputByIndex(idx + 1, 'kg');
-          }
-
-          if(e.key === 'ArrowUp'){
-            e.preventDefault();
-            focusInputByIndex(idx - 1, 'kg');
-          }
-
-          if(e.key === 'ArrowRight' && typeof kgIn.selectionStart === 'number' && kgIn.selectionStart === kgIn.value.length){
-            focusInputByIndex(idx, 'pzas');
-          }
-        });
-
-        const pzTd = document.createElement('td');
-        const pzIn = document.createElement('input');
-        pzIn.className = 'pzas-input';
-        pzIn.type = 'number';
-        pzIn.inputMode = 'numeric';
-        pzIn.value = (r.pzas ?? '');
-
-        pzIn.addEventListener('focus', ()=>{
-          if(typeof pzIn.select === 'function') pzIn.select();
-        });
-
-        pzIn.addEventListener('input', ()=>{
-          state.resultados[activeProduct][idx].pzas = parseFloat(pzIn.value) || 0;
-          updateActiveTotals();
-          scheduleSaves();
-        });
-
-        pzIn.addEventListener('keydown', (e)=>{
-          if(e.key === 'Enter'){
-            e.preventDefault();
-            const currentMark = state.resultados[activeProduct][idx]?.mark || 'none';
-            agregarFilaProductoActivoYEnfocar(currentMark);
-            return;
-          }
-
-          if(e.key === 'ArrowDown'){
-            e.preventDefault();
-            focusInputByIndex(idx + 1, 'pzas');
-          }
-
-          if(e.key === 'ArrowUp'){
-            e.preventDefault();
-            focusInputByIndex(idx - 1, 'pzas');
-          }
-
-          if(e.key === 'ArrowLeft' && typeof pzIn.selectionStart === 'number' && pzIn.selectionStart === 0){
-            focusInputByIndex(idx, 'kg');
-          }
-        });
-
-        const mkTd = document.createElement('td');
-        const sel = buildMarkSelect(r.mark || 'none');
-
-        sel.addEventListener('change', ()=>{
-          state.resultados[activeProduct][idx].mark = sel.value;
-          applyRowMark(tr, sel.value);
-          updateActiveTotals();
-          scheduleSaves();
-        });
-
-        sel.addEventListener('keydown', (e)=>{
-          if(e.key === 'Enter'){
-            e.preventDefault();
-            const currentMark = sel.value || 'none';
-            agregarFilaProductoActivoYEnfocar(currentMark);
-          }
-
-          if(e.key === 'ArrowDown'){
-            e.preventDefault();
-            focusInputByIndex(idx + 1, 'mark');
-          }
-
-          if(e.key === 'ArrowUp'){
-            e.preventDefault();
-            focusInputByIndex(idx - 1, 'mark');
-          }
-        });
-
-        mkTd.appendChild(sel);
-
-        const actTd = document.createElement('td');
-        const del = document.createElement('button');
-        del.className = 'btn danger';
-        del.type = 'button';
-        del.textContent = 'Eliminar';
-
-        del.onclick = () => {
-          state.resultados[activeProduct].splice(idx, 1);
-
-          if((state.resultados[activeProduct] || []).length === 0){
-            addRow(activeProduct);
-            renderActiveTable();
-            updateActiveTotals();
-            scheduleSaves();
-            focusLastKgInput(true);
-            return;
-          }
-
-          renderActiveTable();
-          updateActiveTotals();
-          scheduleSaves();
-
-          const nextIndex = Math.max(0, idx - 1);
-          focusInputByIndex(nextIndex, 'kg');
-        };
-
-        actTd.appendChild(del);
-
-        kgTd.appendChild(kgIn);
-        pzTd.appendChild(pzIn);
-
-        tr.appendChild(kgTd);
-        tr.appendChild(pzTd);
-        tr.appendChild(mkTd);
-        tr.appendChild(actTd);
-
-        applyRowMark(tr, r.mark || 'none');
-        tbody.appendChild(tr);
-      });
-
-      if(rows.length === 0){
-        addRow(activeProduct);
-        renderActiveTable();
-        focusLastKgInput(true);
-        return;
-      }
-    }
-
     function scrollTablaTop(){
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
+    function getRows(producto){
+      return (state.resultados[producto] || [])
+        .filter(r => !r.deleted)
+        .sort((a,b) => (a.position || 0) - (b.position || 0));
+    }
+
     function calcTotals(producto){
-      const rows = state.resultados[producto] || [];
-      let kg=0, pzas=0;
-      rows.forEach(r=>{
-        kg += (r.kg||0);
-        pzas += (r.pzas||0);
+      const rows = getRows(producto);
+      let kg = 0, pzas = 0;
+      rows.forEach(r => {
+        kg += Number(r.kg || 0);
+        pzas += Number(r.pzas || 0);
       });
-      return {kg,pzas};
+      return { kg, pzas };
     }
 
     function calcTotalsByMark(producto){
-      const rows = state.resultados[producto] || [];
+      const rows = getRows(producto);
       const out = {};
       rows.forEach(r=>{
-        const mk = (r.mark || 'none');
+        const mk = r.mark || 'none';
         if(!out[mk]) out[mk] = { kg:0, pzas:0 };
-        out[mk].kg += (r.kg || 0);
-        out[mk].pzas += (r.pzas || 0);
+        out[mk].kg += Number(r.kg || 0);
+        out[mk].pzas += Number(r.pzas || 0);
       });
       return out;
     }
@@ -917,42 +805,457 @@
       renderActiveTotalsByMark();
     }
 
-    function recolectarResultados(){
-      const resultados = {};
-      productos.forEach(p=>{
-        resultados[p] = (state.resultados[p] || [])
-          .filter(r => (r.kg||0) || (r.pzas||0))
-          .map(r => ({ kg: r.kg||0, pzas: r.pzas||0, mark: r.mark||'none' }));
-      });
-      return resultados;
+    function rowPayload(row){
+      return {
+        id: row.id,
+        fecha: row.fecha,
+        producto: row.producto,
+        kg: Number(row.kg || 0),
+        pzas: Number(row.pzas || 0),
+        mark: row.mark || 'none',
+        position: Number(row.position || 0),
+        deleted: !!row.deleted,
+        updated_at: row.updated_at || new Date().toISOString(),
+        updated_by: row.updated_by || DEVICE_ID
+      };
     }
 
-    async function guardarViaje() {
-      const fecha = $('#fechaViaje').value;
-      if (!fecha) return alert("⚠️ Por favor selecciona una fecha.");
+    function upsertLocalItem(item, opts = {}){
+      const producto = item.producto;
+      if(!producto) return;
 
-      const resultados = recolectarResultados();
+      ensureProductState();
 
-      const { data, error } = await supabase
-        .from('hoja_viaje')
-        .insert([{ fecha, resultados }])
-        .select()
-        .single();
+      const arr = state.resultados[producto] || [];
+      const idx = arr.findIndex(x => x.id === item.id);
 
-      if (error) {
-        alert("❌ Error al guardar: " + error.message);
+      const incomingAt = new Date(item.updated_at || 0).getTime() || 0;
+      const localAt = idx >= 0 ? (new Date(arr[idx].updated_at || 0).getTime() || 0) : 0;
+
+      if(idx >= 0 && incomingAt < localAt && !opts.force){
+        return;
+      }
+
+      const clean = rowPayload(item);
+
+      if(idx >= 0){
+        arr[idx] = { ...arr[idx], ...clean };
       } else {
-        alert("✅ Viaje guardado correctamente.");
-        if (data && data.id) {
-          window.viaje_id = data.id;
-          await saveLive();
-          saveLocal();
+        arr.push(clean);
+      }
+
+      state.resultados[producto] = arr;
+      rowVersionMap.set(clean.id, clean.updated_at);
+
+      if(producto === activeProduct){
+        renderActiveTable();
+      }
+      updateActiveTotals();
+    }
+
+    function removeLocalItem(producto, rowId){
+      const arr = state.resultados[producto] || [];
+      const idx = arr.findIndex(x => x.id === rowId);
+      if(idx >= 0){
+        arr.splice(idx, 1);
+        state.resultados[producto] = arr;
+      }
+      if(producto === activeProduct){
+        renderActiveTable();
+      }
+      updateActiveTotals();
+    }
+
+    async function insertRowToDB(row){
+      const payload = {
+        id: row.id,
+        fecha: row.fecha,
+        producto: row.producto,
+        kg: Number(row.kg || 0),
+        pzas: Number(row.pzas || 0),
+        mark: row.mark || 'none',
+        position: Number(row.position || 0),
+        deleted: !!row.deleted,
+        updated_at: new Date().toISOString(),
+        updated_by: DEVICE_ID
+      };
+
+      const { error } = await supabase
+        .from(ITEMS_TABLE)
+        .insert([payload]);
+
+      if(error){
+        console.log('INSERT ITEM ERROR:', error);
+        setRtPill(false, 'RT OFF');
+        setSyncInfo('Error insertando fila');
+        return false;
+      }
+
+      setRtPill(true, 'REAL TIME');
+      setSyncInfo('Fila insertada');
+      return true;
+    }
+
+    async function updateRowToDB(row){
+      const payload = {
+        kg: Number(row.kg || 0),
+        pzas: Number(row.pzas || 0),
+        mark: row.mark || 'none',
+        position: Number(row.position || 0),
+        deleted: !!row.deleted,
+        updated_at: new Date().toISOString(),
+        updated_by: DEVICE_ID
+      };
+
+      const { error } = await supabase
+        .from(ITEMS_TABLE)
+        .update(payload)
+        .eq('id', row.id);
+
+      if(error){
+        console.log('UPDATE ITEM ERROR:', error);
+        setRtPill(false, 'RT OFF');
+        setSyncInfo('Error actualizando fila');
+        return false;
+      }
+
+      const arr = state.resultados[row.producto] || [];
+      const idx = arr.findIndex(x => x.id === row.id);
+      if(idx >= 0){
+        arr[idx].updated_at = payload.updated_at;
+        arr[idx].updated_by = DEVICE_ID;
+      }
+
+      setRtPill(true, 'REAL TIME');
+      setSyncInfo('Fila sincronizada');
+      return true;
+    }
+
+    async function deleteRowFromDB(row){
+      const { error } = await supabase
+        .from(ITEMS_TABLE)
+        .delete()
+        .eq('id', row.id);
+
+      if(error){
+        console.log('DELETE ITEM ERROR:', error);
+        setRtPill(false, 'RT OFF');
+        setSyncInfo('Error eliminando fila');
+        return false;
+      }
+
+      setRtPill(true, 'REAL TIME');
+      setSyncInfo('Fila eliminada');
+      return true;
+    }
+
+    function scheduleRowSave(producto, rowId){
+      const key = rowId;
+      clearTimeout(rowSaveTimers.get(key));
+
+      const timer = setTimeout(async () => {
+        const arr = state.resultados[producto] || [];
+        const row = arr.find(x => x.id === rowId);
+        if(!row) return;
+
+        if(!row._inserted){
+          const ok = await insertRowToDB(row);
+          if(ok){
+            row._inserted = true;
+          }
+          return;
         }
+
+        await updateRowToDB(row);
+      }, 350);
+
+      rowSaveTimers.set(key, timer);
+    }
+
+    async function agregarFilaProductoActivo(markKey = 'none'){
+      const rows = getRows(activeProduct);
+      const position = rows.length ? Math.max(...rows.map(r => Number(r.position || 0))) + 1 : 1;
+
+      const row = {
+        id: newUUID(),
+        fecha: getFechaISO(),
+        producto: activeProduct,
+        kg: 0,
+        pzas: 0,
+        mark: markKey,
+        position,
+        deleted: false,
+        updated_at: new Date().toISOString(),
+        updated_by: DEVICE_ID,
+        _inserted: false
+      };
+
+      upsertLocalItem(row, { force: true });
+
+      const ok = await insertRowToDB(row);
+      if(ok){
+        const arr = state.resultados[activeProduct] || [];
+        const idx = arr.findIndex(x => x.id === row.id);
+        if(idx >= 0) arr[idx]._inserted = true;
+      }
+
+      renderActiveTable();
+      updateActiveTotals();
+      focusLastKgInput(true);
+    }
+
+    function renderActiveTable(){
+      $('#activeProductName').textContent = activeProduct;
+
+      const tbody = $('#tablaActiva tbody');
+      tbody.innerHTML = '';
+
+      const rows = getRows(activeProduct);
+
+      rows.forEach((r, idx) => {
+        const tr = document.createElement('tr');
+        tr.dataset.rowId = r.id;
+
+        const kgTd = document.createElement('td');
+        const kgIn = document.createElement('input');
+        kgIn.className = 'kg-input';
+        kgIn.type = 'number';
+        kgIn.step = '0.1';
+        kgIn.inputMode = 'decimal';
+        kgIn.value = Number(r.kg || 0) === 0 ? '' : Number(r.kg || 0);
+
+        kgIn.addEventListener('focus', ()=>{
+          if(typeof kgIn.select === 'function') kgIn.select();
+        });
+
+        kgIn.addEventListener('input', ()=>{
+          r.kg = parseFloat(kgIn.value) || 0;
+          r.updated_at = new Date().toISOString();
+          r.updated_by = DEVICE_ID;
+          updateActiveTotals();
+          scheduleRowSave(activeProduct, r.id);
+        });
+
+        kgIn.addEventListener('keydown', (e)=>{
+          if(e.key === 'Enter'){
+            e.preventDefault();
+
+            if(e.shiftKey){
+              focusInputByIndex(idx, 'pzas');
+              return;
+            }
+
+            const currentMark = r.mark || 'none';
+            agregarFilaProductoActivo(currentMark);
+            return;
+          }
+
+          if(e.key === 'ArrowDown'){
+            e.preventDefault();
+            focusInputByIndex(idx + 1, 'kg');
+          }
+
+          if(e.key === 'ArrowUp'){
+            e.preventDefault();
+            focusInputByIndex(idx - 1, 'kg');
+          }
+
+          if(e.key === 'ArrowRight' && typeof kgIn.selectionStart === 'number' && kgIn.selectionStart === kgIn.value.length){
+            focusInputByIndex(idx, 'pzas');
+          }
+        });
+
+        const pzTd = document.createElement('td');
+        const pzIn = document.createElement('input');
+        pzIn.className = 'pzas-input';
+        pzIn.type = 'number';
+        pzIn.inputMode = 'numeric';
+        pzIn.value = Number(r.pzas || 0) === 0 ? '' : Number(r.pzas || 0);
+
+        pzIn.addEventListener('focus', ()=>{
+          if(typeof pzIn.select === 'function') pzIn.select();
+        });
+
+        pzIn.addEventListener('input', ()=>{
+          r.pzas = parseFloat(pzIn.value) || 0;
+          r.updated_at = new Date().toISOString();
+          r.updated_by = DEVICE_ID;
+          updateActiveTotals();
+          scheduleRowSave(activeProduct, r.id);
+        });
+
+        pzIn.addEventListener('keydown', (e)=>{
+          if(e.key === 'Enter'){
+            e.preventDefault();
+            const currentMark = r.mark || 'none';
+            agregarFilaProductoActivo(currentMark);
+            return;
+          }
+
+          if(e.key === 'ArrowDown'){
+            e.preventDefault();
+            focusInputByIndex(idx + 1, 'pzas');
+          }
+
+          if(e.key === 'ArrowUp'){
+            e.preventDefault();
+            focusInputByIndex(idx - 1, 'pzas');
+          }
+
+          if(e.key === 'ArrowLeft' && typeof pzIn.selectionStart === 'number' && pzIn.selectionStart === 0){
+            focusInputByIndex(idx, 'kg');
+          }
+        });
+
+        const mkTd = document.createElement('td');
+        const sel = buildMarkSelect(r.mark || 'none');
+
+        sel.addEventListener('change', ()=>{
+          r.mark = sel.value;
+          r.updated_at = new Date().toISOString();
+          r.updated_by = DEVICE_ID;
+          applyRowMark(tr, sel.value);
+          updateActiveTotals();
+          scheduleRowSave(activeProduct, r.id);
+        });
+
+        sel.addEventListener('keydown', (e)=>{
+          if(e.key === 'Enter'){
+            e.preventDefault();
+            const currentMark = sel.value || 'none';
+            agregarFilaProductoActivo(currentMark);
+          }
+
+          if(e.key === 'ArrowDown'){
+            e.preventDefault();
+            focusInputByIndex(idx + 1, 'mark');
+          }
+
+          if(e.key === 'ArrowUp'){
+            e.preventDefault();
+            focusInputByIndex(idx - 1, 'mark');
+          }
+        });
+
+        mkTd.appendChild(sel);
+
+        const actTd = document.createElement('td');
+
+        const del = document.createElement('button');
+        del.className = 'btn danger';
+        del.type = 'button';
+        del.textContent = 'Eliminar';
+
+        del.onclick = async () => {
+          clearTimeout(rowSaveTimers.get(r.id));
+          await deleteRowFromDB(r);
+          removeLocalItem(activeProduct, r.id);
+
+          const remain = getRows(activeProduct);
+          if(remain.length === 0){
+            await agregarFilaProductoActivo();
+            return;
+          }
+
+          const nextIndex = Math.max(0, idx - 1);
+          focusInputByIndex(nextIndex, 'kg');
+        };
+
+        actTd.appendChild(del);
+
+        kgTd.appendChild(kgIn);
+        pzTd.appendChild(pzIn);
+
+        tr.appendChild(kgTd);
+        tr.appendChild(pzTd);
+        tr.appendChild(mkTd);
+        tr.appendChild(actTd);
+
+        applyRowMark(tr, r.mark || 'none');
+        tbody.appendChild(tr);
+      });
+
+      if(rows.length === 0){
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="4" style="padding:18px; color:var(--muted); font-weight:900;">
+              No hay pesadas aún para este producto.
+            </td>
+          </tr>
+        `;
       }
     }
 
+    async function loadFechaItems(){
+      ensureProductState();
+      productos.forEach(p => state.resultados[p] = []);
+
+      const fecha = getFechaISO();
+
+      const { data, error } = await supabase
+        .from(ITEMS_TABLE)
+        .select('*')
+        .eq('fecha', fecha)
+        .order('position', { ascending: true });
+
+      if(error){
+        console.log('LOAD ITEMS ERROR:', error);
+        setRtPill(false, 'RT OFF');
+        setSyncInfo('Error cargando fecha');
+        renderSidebar();
+        renderActiveTable();
+        updateActiveTotals();
+        return;
+      }
+
+      (data || [])
+        .filter(r => !r.deleted)
+        .forEach(r => {
+          upsertLocalItem({
+            ...r,
+            _inserted: true
+          }, { force: true });
+        });
+
+      renderSidebar();
+      renderActiveTable();
+      updateActiveTotals();
+
+      const currentRows = getRows(activeProduct);
+      if(currentRows.length === 0){
+        await agregarFilaProductoActivo();
+      }
+    }
+
+    async function sincronizarAhora(){
+      setSyncInfo('Sincronizando…');
+      const prods = Object.keys(state.resultados);
+
+      for(const prod of prods){
+        const rows = state.resultados[prod] || [];
+        for(const row of rows){
+          if(row.deleted) continue;
+
+          if(!row._inserted){
+            const ok = await insertRowToDB(row);
+            if(ok) row._inserted = true;
+          } else {
+            await updateRowToDB(row);
+          }
+        }
+      }
+
+      setSyncInfo('Sincronización terminada');
+    }
+
     async function mostrarHistorial() {
-      const { data, error } = await supabase.from('hoja_viaje').select('*').order('fecha', { ascending: false });
+      const { data, error } = await supabase
+        .from(ITEMS_TABLE)
+        .select('fecha, producto, kg, pzas, mark, position, deleted')
+        .eq('deleted', false)
+        .order('fecha', { ascending: false })
+        .order('producto', { ascending: true });
+
       const contenedor = $('#historialContainer');
       contenedor.innerHTML = '';
 
@@ -966,35 +1269,73 @@
         return;
       }
 
-      const tabla = document.createElement('table');
-      tabla.style.width = '100%';
-      tabla.innerHTML = '<thead><tr><th>Fecha</th><th>Resumen</th></tr></thead><tbody>' +
-        data.map(row => `<tr><td style="font-weight:1000;">${row.fecha}</td><td><pre style="text-align:left; white-space:pre-wrap; margin:0;">${JSON.stringify(row.resultados, null, 2)}</pre></td></tr>`).join('') +
-        '</tbody>';
-      contenedor.appendChild(tabla);
+      const resumen = {};
+      data.forEach(r => {
+        const key = r.fecha;
+        if(!resumen[key]) resumen[key] = {};
+        if(!resumen[key][r.producto]) resumen[key][r.producto] = { kg:0, pzas:0 };
+        resumen[key][r.producto].kg += Number(r.kg || 0);
+        resumen[key][r.producto].pzas += Number(r.pzas || 0);
+      });
+
+      const fechas = Object.keys(resumen).sort((a,b)=> b.localeCompare(a));
+
+      let html = '';
+      fechas.forEach(fecha => {
+        html += `
+          <div class="card" style="margin-top:12px;">
+            <div class="card-h">
+              <h2>${fecha}</h2>
+            </div>
+            <div class="card-b">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Producto</th>
+                    <th>Kg</th>
+                    <th>Pzas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${Object.entries(resumen[fecha]).map(([prod, vals]) => `
+                    <tr>
+                      <td style="text-align:left;">${prod}</td>
+                      <td>${Number(vals.kg || 0).toFixed(1)}</td>
+                      <td>${Number(vals.pzas || 0)}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      });
+
+      contenedor.innerHTML = html;
     }
 
     async function generarResumenTotales() {
-      const { data, error } = await supabase.from('hoja_viaje').select('*');
-      if (error || !data) return alert('❌ Error al obtener datos: ' + error.message);
+      const { data, error } = await supabase
+        .from(ITEMS_TABLE)
+        .select('producto, kg, pzas, deleted')
+        .eq('deleted', false);
+
+      if (error || !data) return alert('❌ Error al obtener datos: ' + (error?.message || ''));
 
       const totales = {};
       data.forEach(row => {
-        const prods = row.resultados || {};
-        Object.keys(prods).forEach(nombre => {
-          prods[nombre].forEach(r => {
-            if (!totales[nombre]) totales[nombre] = { kg: 0, pzas: 0 };
-            totales[nombre].kg += r.kg || 0;
-            totales[nombre].pzas += r.pzas || 0;
-          });
-        });
+        if (!totales[row.producto]) totales[row.producto] = { kg: 0, pzas: 0 };
+        totales[row.producto].kg += Number(row.kg || 0);
+        totales[row.producto].pzas += Number(row.pzas || 0);
       });
 
+      const ordenados = Object.entries(totales).sort((a,b)=> a[0].localeCompare(b[0], 'es'));
+
       let html = '<h1 style="font-family:Arial;">Resumen Total de Kilos y Piezas</h1>';
-      html += '<table border="1" cellpadding="6" style="border-collapse:collapse;font-family:Arial;">';
+      html += '<table border="1" cellpadding="6" style="border-collapse:collapse;font-family:Arial; width:100%;">';
       html += '<tr><th>Producto</th><th>Total Kg</th><th>Total Pzas</th></tr>';
-      Object.entries(totales).forEach(([nombre, valores]) => {
-        html += `<tr><td>${nombre}</td><td>${valores.kg.toFixed(1)}</td><td>${valores.pzas}</td></tr>`;
+      ordenados.forEach(([nombre, valores]) => {
+        html += `<tr><td>${nombre}</td><td>${Number(valores.kg || 0).toFixed(1)}</td><td>${Number(valores.pzas || 0)}</td></tr>`;
       });
       html += '</table>';
 
@@ -1003,147 +1344,75 @@
       window.open(url, '_blank');
     }
 
-    const MODULE = 'hoja_viaje';
-    let dirty=false, tLocal=null, tLive=null;
-    let rtSub = null;
-    let applyingRemote = false;
-
-    function getFechaISO(){ return $('#fechaViaje')?.value || todayISO(); }
-    function liveKey(){ return `viaje-${getFechaISO()}`; }
-    function collectState(){
-      return { fecha: getFechaISO(), resultados: recolectarResultados(), _activeProduct: activeProduct };
-    }
-
-    function applyState(inState){
-      if(!inState) return;
-      if(inState.fecha) $('#fechaViaje').value = inState.fecha;
-
-      const res = inState.resultados || {};
-      productos.forEach(p=>{
-        const rows = res[p] || [];
-        state.resultados[p] = rows.map(r=>({ kg:r.kg||0, pzas:r.pzas||0, mark:r.mark||'none' }));
-      });
-
-      if(inState._activeProduct && productos.includes(inState._activeProduct)){
-        activeProduct = inState._activeProduct;
-      }
-      renderSidebar();
-      renderActiveTable();
-      updateActiveTotals();
-    }
-
-    function lkey(){ return `draft:${MODULE}:${liveKey()}`; }
-    function saveLocal(){
-      localStorage.setItem(lkey(), JSON.stringify({ts:Date.now(), data:collectState()}));
-      dirty=true;
-    }
-    function loadLocal(){
-      const raw=localStorage.getItem(lkey());
-      if(!raw) return;
-      try{ applyState(JSON.parse(raw).data); }catch{}
-    }
-
-    async function saveLive(){
-      if(applyingRemote) return;
-
-      const row = {
-        id: liveKey(),
-        fecha: getFechaISO(),
-        data: collectState(),
-        updated_at: new Date().toISOString(),
-        updated_by: DEVICE_ID
-      };
-
-      const { error } = await supabase
-        .from(LIVE_TABLE)
-        .upsert([row], { onConflict: 'id' });
-
-      if(error){
-        console.log("LIVE UPSERT ERROR:", error);
-        setRtPill(false, 'RT OFF');
-      }else{
-        setRtPill(true, 'REAL TIME');
-      }
-    }
-
-    async function loadLive(){
-      const { data, error } = await supabase
-        .from(LIVE_TABLE)
-        .select('data, updated_by, updated_at')
-        .eq('id', liveKey())
-        .single();
-      if(error) return;
-      if(data && data.data){
-        applyingRemote = true;
-        applyState(data.data);
-        applyingRemote = false;
-      }
-    }
-
-    function setRtPill(on, text){
-      const pill = $('#rt');
-      if(!pill) return;
-      pill.textContent = text || (on ? 'REAL TIME' : 'RT OFF');
-      pill.classList.toggle('off', !on);
-    }
-
     function subscribeLive(){
       if(rtSub){
         try{ supabase.removeSubscription(rtSub); }catch(e){}
         rtSub = null;
       }
 
+      const fecha = getFechaISO();
+
       rtSub = supabase
-        .from(`${LIVE_TABLE}:id=eq.${liveKey()}`)
-        .on('INSERT', payload => onLivePayload(payload))
-        .on('UPDATE', payload => onLivePayload(payload))
+        .from(`${ITEMS_TABLE}:fecha=eq.${fecha}`)
+        .on('INSERT', payload => onLiveInsert(payload))
+        .on('UPDATE', payload => onLiveUpdate(payload))
+        .on('DELETE', payload => onLiveDelete(payload))
         .subscribe((status)=>{
-          if(status === 'SUBSCRIBED') setRtPill(true, 'REAL TIME');
+          if(status === 'SUBSCRIBED'){
+            setRtPill(true, 'REAL TIME');
+            setSyncInfo('Escuchando cambios en vivo');
+          }
         });
     }
 
-    function onLivePayload(payload){
+    function onLiveInsert(payload){
       try{
         const row = payload.new || payload.record || null;
-        if(!row) return;
-        if(row.updated_by && row.updated_by === DEVICE_ID) return;
+        if(!row || row.deleted) return;
 
-        if(row.data){
-          applyingRemote = true;
-          applyState(row.data);
-          applyingRemote = false;
-          dirty = true;
+        if(row.updated_by === DEVICE_ID){
+          const arr = state.resultados[row.producto] || [];
+          const idx = arr.findIndex(x => x.id === row.id);
+          if(idx >= 0) arr[idx]._inserted = true;
         }
+
+        upsertLocalItem({
+          ...row,
+          _inserted: true
+        });
       }catch(e){
-        console.log("LIVE PAYLOAD ERROR:", e);
+        console.log('LIVE INSERT ERROR:', e);
       }
     }
 
-    function scheduleSaves(){
-      clearTimeout(tLocal);
-      tLocal=setTimeout(saveLocal, 400);
+    function onLiveUpdate(payload){
+      try{
+        const row = payload.new || payload.record || null;
+        if(!row) return;
 
-      clearTimeout(tLive);
-      tLive=setTimeout(saveLive, 700);
+        if(row.deleted){
+          removeLocalItem(row.producto, row.id);
+          return;
+        }
+
+        upsertLocalItem({
+          ...row,
+          _inserted: true
+        });
+      }catch(e){
+        console.log('LIVE UPDATE ERROR:', e);
+      }
     }
 
-    window.addEventListener('beforeunload', (e)=>{
-      if(!dirty) return;
-      e.preventDefault();
-      e.returnValue='';
-    });
-
-    $('#fechaViaje')?.addEventListener('change', async ()=>{
-      applyingRemote = true;
-      await loadLive();
-      loadLocal();
-      applyingRemote = false;
-      subscribeLive();
-    });
-
-    let pesoActual = null;
-    let pesoSub = null;
-    let lastFocusedKgInput = null;
+    function onLiveDelete(payload){
+      try{
+        const row = payload.old || payload.record || null;
+        if(!row) return;
+        removeLocalItem(row.producto, row.id);
+      }catch(e){
+        console.log('LIVE DELETE ERROR:', e);
+      }
+    }
 
     document.addEventListener('focusin', (e)=>{
       const el = e.target;
@@ -1209,19 +1478,18 @@
       target.value = Number(pesoActual).toFixed(2);
       target.dispatchEvent(new Event('input', { bubbles:true }));
       target.dispatchEvent(new Event('change', { bubbles:true }));
-      scheduleSaves();
 
       const tbody = document.querySelector('#tablaActiva tbody');
       const tr = target.closest('tr');
       if(!tbody || !tr) return;
 
-      const rows = Array.from(tbody.querySelectorAll('tr'));
+      const rows = Array.from(tbody.querySelectorAll('tr')).filter(x => x.dataset.rowId);
       const idx = rows.indexOf(tr);
       const currentMarkSel = tr.querySelector('.mark-select');
       const currentMark = currentMarkSel ? currentMarkSel.value : 'none';
 
       if(idx === rows.length - 1){
-        agregarFilaProductoActivoYEnfocar(currentMark);
+        agregarFilaProductoActivo(currentMark);
       }else{
         focusInputByIndex(idx + 1, 'kg');
       }
@@ -1308,6 +1576,22 @@
       });
     }
 
+    async function cambiarFecha(){
+      state.fecha = getFechaISO();
+      ensureProductState();
+
+      if(rtSub){
+        try{ supabase.removeSubscription(rtSub); }catch(e){}
+        rtSub = null;
+      }
+
+      setSyncInfo('Cargando fecha…');
+      await loadFechaItems();
+      subscribeLive();
+    }
+
+    $('#fechaViaje')?.addEventListener('change', cambiarFecha);
+
     document.addEventListener('DOMContentLoaded', async ()=>{
       $('#fechaViaje').value = todayISO();
       state.fecha = $('#fechaViaje').value;
@@ -1316,14 +1600,12 @@
       setupKeepFocusedInputVisible();
       setupGlobalShortcuts();
 
-      await loadLive();
-
       renderSidebar();
       renderActiveTable();
       updateActiveTotals();
 
+      await loadFechaItems();
       subscribeLive();
-      await saveLive();
 
       setPesoStatus(true, 'CONECTANDO');
       await leerPesoManual();
