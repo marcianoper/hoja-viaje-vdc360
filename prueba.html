@@ -109,6 +109,7 @@
     }
     .btn.danger{ background: var(--danger); }
     .btn.warn{ background: var(--warn); }
+    .btn.save{ background: var(--ok); }
 
     .wrap{
       max-width: 1400px;
@@ -412,6 +413,7 @@
         <span id="rt" class="rt-pill">REAL TIME</span>
         <span id="syncInfo" class="status-note">Sincronizando por filas</span>
 
+        <button class="btn save" type="button" onclick="guardarViajeActual()">Guardar viaje</button>
         <button class="btn ghost" type="button" onclick="mostrarHistorial()">Historial</button>
         <button class="btn ghost" type="button" onclick="generarResumenTotales()">Documento Totales</button>
         <button class="btn" type="button" onclick="sincronizarAhora()">Sincronizar ahora</button>
@@ -528,6 +530,7 @@
     const BASCULA_TABLE = 'bascula_live';
     const BASCULA_ID = 'torrey_1';
     const ITEMS_TABLE = 'hoja_viaje_items';
+    const VIAJES_TABLE = 'hoja_viaje';
 
     const DEVICE_ID = (() => {
       const k = 'vdc_device_id';
@@ -614,7 +617,6 @@
     let pesoActual = null;
 
     const rowSaveTimers = new Map();
-    const rowVersionMap = new Map();
 
     function ensureProductState(){
       productos.forEach(p => {
@@ -845,7 +847,6 @@
       }
 
       state.resultados[producto] = arr;
-      rowVersionMap.set(clean.id, clean.updated_at);
 
       if(producto === activeProduct){
         renderActiveTable();
@@ -1246,6 +1247,86 @@
       }
 
       setSyncInfo('Sincronización terminada');
+    }
+
+    function construirViajeActual(){
+      const fecha = getFechaISO();
+      const resultados = {};
+      let totalKg = 0;
+      let totalPzas = 0;
+      let totalFilas = 0;
+
+      productos.forEach(producto => {
+        const rows = getRows(producto)
+          .filter(r => r.fecha === fecha && !r.deleted)
+          .map(r => ({
+            kg: Number(r.kg || 0),
+            pzas: Number(r.pzas || 0),
+            mark: r.mark || 'none'
+          }));
+
+        if(rows.length){
+          resultados[producto] = rows;
+
+          rows.forEach(r => {
+            totalKg += Number(r.kg || 0);
+            totalPzas += Number(r.pzas || 0);
+            totalFilas += 1;
+          });
+        }
+      });
+
+      const datos = {
+        fecha,
+        total_kg: Number(totalKg.toFixed(2)),
+        total_pzas: totalPzas,
+        total_filas: totalFilas,
+        productos_con_movimiento: Object.keys(resultados).length,
+        actualizado_por: DEVICE_ID,
+        actualizado_en: new Date().toISOString()
+      };
+
+      return { fecha, datos, resultados };
+    }
+
+    async function guardarViajeActual(){
+      try{
+        setSyncInfo('Guardando viaje…');
+
+        await sincronizarAhora();
+
+        const viaje = construirViajeActual();
+
+        const payload = {
+          fecha: viaje.fecha,
+          datos: viaje.datos,
+          resultados: viaje.resultados
+        };
+
+        const { error } = await supabase
+          .from(VIAJES_TABLE)
+          .upsert([payload], { onConflict: 'fecha' });
+
+        if(error){
+          console.log('ERROR GUARDANDO VIAJE:', error);
+          setSyncInfo('Error guardando viaje');
+          alert('❌ Error al guardar viaje: ' + error.message);
+          return;
+        }
+
+        setSyncInfo('Viaje guardado correctamente');
+        alert(
+          `✅ Viaje guardado correctamente\n\n` +
+          `Fecha: ${viaje.fecha}\n` +
+          `Total Kg: ${viaje.datos.total_kg}\n` +
+          `Total Pzas: ${viaje.datos.total_pzas}\n` +
+          `Filas: ${viaje.datos.total_filas}`
+        );
+      }catch(err){
+        console.log('EXCEPCIÓN GUARDANDO VIAJE:', err);
+        setSyncInfo('Error guardando viaje');
+        alert('❌ Ocurrió un error al guardar el viaje.');
+      }
     }
 
     async function mostrarHistorial() {
