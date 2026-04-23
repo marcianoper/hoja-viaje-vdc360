@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Hoja de Viaje - VDC360°</title>
 
-  <!-- Supabase v1 -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@1.35.6/dist/umd/supabase.min.js"></script>
 
   <style>
@@ -841,9 +840,9 @@
       const clean = rowPayload(item);
 
       if(idx >= 0){
-        arr[idx] = { ...arr[idx], ...clean };
+        arr[idx] = { ...arr[idx], ...clean, _inserted: true };
       } else {
-        arr.push(clean);
+        arr.push({ ...clean, _inserted: true });
       }
 
       state.resultados[producto] = arr;
@@ -867,7 +866,7 @@
       updateActiveTotals();
     }
 
-    async function insertRowToDB(row){
+    async function saveRowToDB(row){
       const payload = {
         id: row.id,
         fecha: row.fecha,
@@ -883,52 +882,25 @@
 
       const { error } = await supabase
         .from(ITEMS_TABLE)
-        .insert([payload]);
+        .upsert([payload], { onConflict: 'id' });
 
       if(error){
-        console.log('INSERT ITEM ERROR:', error);
+        console.log('UPSERT ITEM ERROR:', error);
         setRtPill(false, 'RT OFF');
-        setSyncInfo('Error insertando fila');
-        return false;
-      }
-
-      setRtPill(true, 'REAL TIME');
-      setSyncInfo('Fila insertada');
-      return true;
-    }
-
-    async function updateRowToDB(row){
-      const payload = {
-        kg: Number(row.kg || 0),
-        pzas: Number(row.pzas || 0),
-        mark: row.mark || 'none',
-        position: Number(row.position || 0),
-        deleted: !!row.deleted,
-        updated_at: new Date().toISOString(),
-        updated_by: DEVICE_ID
-      };
-
-      const { error } = await supabase
-        .from(ITEMS_TABLE)
-        .update(payload)
-        .eq('id', row.id);
-
-      if(error){
-        console.log('UPDATE ITEM ERROR:', error);
-        setRtPill(false, 'RT OFF');
-        setSyncInfo('Error actualizando fila');
+        setSyncInfo('Error guardando fila');
         return false;
       }
 
       const arr = state.resultados[row.producto] || [];
       const idx = arr.findIndex(x => x.id === row.id);
       if(idx >= 0){
+        arr[idx]._inserted = true;
         arr[idx].updated_at = payload.updated_at;
         arr[idx].updated_by = DEVICE_ID;
       }
 
       setRtPill(true, 'REAL TIME');
-      setSyncInfo('Fila sincronizada');
+      setSyncInfo('Fila guardada');
       return true;
     }
 
@@ -958,16 +930,7 @@
         const arr = state.resultados[producto] || [];
         const row = arr.find(x => x.id === rowId);
         if(!row) return;
-
-        if(!row._inserted){
-          const ok = await insertRowToDB(row);
-          if(ok){
-            row._inserted = true;
-          }
-          return;
-        }
-
-        await updateRowToDB(row);
+        await saveRowToDB(row);
       }, 350);
 
       rowSaveTimers.set(key, timer);
@@ -988,17 +951,11 @@
         deleted: false,
         updated_at: new Date().toISOString(),
         updated_by: DEVICE_ID,
-        _inserted: false
+        _inserted: true
       };
 
       upsertLocalItem(row, { force: true });
-
-      const ok = await insertRowToDB(row);
-      if(ok){
-        const arr = state.resultados[activeProduct] || [];
-        const idx = arr.findIndex(x => x.id === row.id);
-        if(idx >= 0) arr[idx]._inserted = true;
-      }
+      await saveRowToDB(row);
 
       renderActiveTable();
       updateActiveTotals();
@@ -1212,10 +1169,7 @@
       (data || [])
         .filter(r => !r.deleted)
         .forEach(r => {
-          upsertLocalItem({
-            ...r,
-            _inserted: true
-          }, { force: true });
+          upsertLocalItem({ ...r, _inserted: true }, { force: true });
         });
 
       renderSidebar();
@@ -1236,13 +1190,7 @@
         const rows = state.resultados[prod] || [];
         for(const row of rows){
           if(row.deleted) continue;
-
-          if(!row._inserted){
-            const ok = await insertRowToDB(row);
-            if(ok) row._inserted = true;
-          } else {
-            await updateRowToDB(row);
-          }
+          await saveRowToDB(row);
         }
       }
 
@@ -1450,17 +1398,7 @@
       try{
         const row = payload.new || payload.record || null;
         if(!row || row.deleted) return;
-
-        if(row.updated_by === DEVICE_ID){
-          const arr = state.resultados[row.producto] || [];
-          const idx = arr.findIndex(x => x.id === row.id);
-          if(idx >= 0) arr[idx]._inserted = true;
-        }
-
-        upsertLocalItem({
-          ...row,
-          _inserted: true
-        });
+        upsertLocalItem({ ...row, _inserted: true });
       }catch(e){
         console.log('LIVE INSERT ERROR:', e);
       }
@@ -1476,10 +1414,7 @@
           return;
         }
 
-        upsertLocalItem({
-          ...row,
-          _inserted: true
-        });
+        upsertLocalItem({ ...row, _inserted: true });
       }catch(e){
         console.log('LIVE UPDATE ERROR:', e);
       }
