@@ -1251,14 +1251,42 @@
           resultados: viaje.resultados
         };
 
-        const { error } = await supabase
+        const { data: existente, error: errorBuscar } = await supabase
           .from(VIAJES_TABLE)
-          .upsert([payload], { onConflict: 'fecha' });
+          .select('id, fecha')
+          .eq('fecha', viaje.fecha)
+          .limit(1);
 
-        if(error){
-          console.log('ERROR GUARDANDO VIAJE:', error);
+        if(errorBuscar){
+          console.log('ERROR BUSCANDO VIAJE:', errorBuscar);
+          setSyncInfo('Error buscando viaje');
+          alert('❌ Error al buscar viaje existente: ' + errorBuscar.message);
+          return;
+        }
+
+        let errorGuardar = null;
+
+        if(existente && existente.length > 0){
+          const viajeId = existente[0].id;
+
+          const { error } = await supabase
+            .from(VIAJES_TABLE)
+            .update(payload)
+            .eq('id', viajeId);
+
+          errorGuardar = error;
+        } else {
+          const { error } = await supabase
+            .from(VIAJES_TABLE)
+            .insert([payload]);
+
+          errorGuardar = error;
+        }
+
+        if(errorGuardar){
+          console.log('ERROR GUARDANDO VIAJE:', errorGuardar);
           setSyncInfo('Error guardando viaje');
-          alert('❌ Error al guardar viaje: ' + error.message);
+          alert('❌ Error al guardar viaje: ' + errorGuardar.message);
           return;
         }
 
