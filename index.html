@@ -251,6 +251,35 @@
       font-weight: 1000;
     }
 
+    .mark-cell{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      justify-content:center;
+      flex-wrap:wrap;
+    }
+    .mark-name{
+      width: 150px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(0,0,0,.12);
+      background:#fff;
+      font-weight: 900;
+      outline:none;
+    }
+    .hora-cell{
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      font-weight: 1000;
+    }
+    .hora-cell.vacia{ color: var(--muted); font-weight: 800; }
+    .mark-dot{
+      display:inline-block;
+      width:12px; height:12px;
+      border-radius:999px;
+      border:1px solid rgba(0,0,0,.25);
+    }
+
     .row-mark-none { background: transparent; }
     .row-mark-yellow { background: rgba(255, 235, 59, .35); }
     .row-mark-blue { background: rgba(33, 150, 243, .20); }
@@ -415,6 +444,7 @@
         <button class="btn save" type="button" onclick="guardarViajeActual()">Guardar viaje</button>
         <button class="btn ghost" type="button" onclick="mostrarHistorial()">Historial</button>
         <button class="btn ghost" type="button" onclick="generarResumenTotales()">Documento Totales</button>
+        <button class="btn ghost" type="button" onclick="registroHorasDelDia()">Registro de horas</button>
         <button class="btn" type="button" onclick="sincronizarAhora()">Sincronizar ahora</button>
       </div>
     </div>
@@ -484,6 +514,7 @@
                 <tr>
                   <th>Kg</th>
                   <th>Piezas</th>
+                  <th>Hora</th>
                   <th>Marcador</th>
                   <th>Acciones</th>
                 </tr>
@@ -572,36 +603,63 @@
       });
     }
 
+    // Marcadores: solo colores. El nombre se escribe libre en la casilla de al lado.
     const MARKS = [
-      { key: 'none',   label: 'Sin marca', cls: 'row-mark-none' },
-      { key: 'yellow', label: 'Sosa',      cls: 'row-mark-yellow' },
-      { key: 'blue',   label: 'Carillo',   cls: 'row-mark-blue' },
-      { key: 'chato',  label: 'Chato',     cls: 'row-mark-blue' },
-      { key: 'green',  label: 'Angelica',  cls: 'row-mark-green' },
-      { key: 'red',    label: 'Leonardo',  cls: 'row-mark-red' },
-      { key: 'granja', label: 'Granja',    cls: 'row-mark-red' },
-      { key: 'pink',   label: 'Otomi',     cls: 'row-mark-pink' },
-      { key: 'purple', label: 'Mostrador', cls: 'row-mark-purple' },
-      { key: 'black',  label: 'Gorda',     cls: 'row-mark-black' },
-      { key: 'brown',  label: 'Almacen',   cls: 'row-mark-brown' }
+      { key: 'none',   label: 'Sin color', cls: 'row-mark-none',   dot: '#ffffff' },
+      { key: 'yellow', label: 'Amarillo',  cls: 'row-mark-yellow', dot: '#fdd835' },
+      { key: 'blue',   label: 'Azul',      cls: 'row-mark-blue',   dot: '#2196f3' },
+      { key: 'green',  label: 'Verde',     cls: 'row-mark-green',  dot: '#4caf50' },
+      { key: 'red',    label: 'Rojo',      cls: 'row-mark-red',    dot: '#f44336' },
+      { key: 'pink',   label: 'Rosa',      cls: 'row-mark-pink',   dot: '#e91e63' },
+      { key: 'purple', label: 'Morado',    cls: 'row-mark-purple', dot: '#9c27b0' },
+      { key: 'black',  label: 'Negro',     cls: 'row-mark-black',  dot: '#222222' },
+      { key: 'brown',  label: 'Café',      cls: 'row-mark-brown',  dot: '#795548' }
     ];
 
+    // Claves viejas que ya están guardadas en pesadas anteriores
+    const MARK_LEGACY = { chato: 'blue', granja: 'red' };
+
+    function normalizeMark(markKey){
+      const k = markKey || 'none';
+      return MARK_LEGACY[k] || (MARKS.some(m => m.key === k) ? k : 'none');
+    }
+
+    function markInfo(markKey){
+      const k = normalizeMark(markKey);
+      return MARKS.find(m => m.key === k) || MARKS[0];
+    }
+
     function markToClass(markKey){
-      const f = MARKS.find(m => m.key === markKey);
-      return f ? f.cls : 'row-mark-none';
+      return markInfo(markKey).cls;
     }
 
     function buildMarkSelect(selectedKey = 'none'){
       const sel = document.createElement('select');
       sel.className = 'mark-select';
-      sel.innerHTML = MARKS.map(m => `<option value="${m.key}" ${m.key===selectedKey?'selected':''}>${m.label}</option>`).join('');
+      const k = normalizeMark(selectedKey);
+      sel.innerHTML = MARKS.map(m => `<option value="${m.key}" ${m.key===k?'selected':''}>${m.label}</option>`).join('');
       return sel;
     }
 
     function applyRowMark(row, markKey){
       MARKS.forEach(m => row.classList.remove(m.cls));
       row.classList.add(markToClass(markKey));
-      row.dataset.mark = markKey || 'none';
+      row.dataset.mark = normalizeMark(markKey);
+    }
+
+    function cleanNombre(s){
+      return String(s || '').replace(/\s+/g, ' ').trim();
+    }
+
+    function formatHora(iso){
+      if(!iso) return '';
+      const d = new Date(iso);
+      if(isNaN(d.getTime())) return '';
+      return d.toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false });
+    }
+
+    function escHtml(s){
+      return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     }
 
     let state = {
@@ -751,8 +809,10 @@
       const rows = getRows(producto);
       const out = {};
       rows.forEach(r=>{
-        const mk = r.mark || 'none';
-        if(!out[mk]) out[mk] = { kg:0, pzas:0 };
+        const color = normalizeMark(r.mark);
+        const nombre = cleanNombre(r.mark_nombre);
+        const mk = color + '|' + nombre.toLowerCase();
+        if(!out[mk]) out[mk] = { kg:0, pzas:0, color, nombre };
         out[mk].kg += Number(r.kg || 0);
         out[mk].pzas += Number(r.pzas || 0);
       });
@@ -775,13 +835,10 @@
 
       items.sort((a,b)=> (b[1].kg||0) - (a[1].kg||0));
 
-      const labelOf = (mk)=>{
-        const f = MARKS.find(m=>m.key===mk);
-        return f ? f.label : mk;
-      };
-
       cont.innerHTML = items.map(([mk, v])=>{
-        const label = labelOf(mk);
+        const info = markInfo(v.color);
+        const label = `<span class="mark-dot" style="background:${info.dot}"></span>` +
+          (v.nombre ? escHtml(v.nombre) : info.label);
         return `
           <span style="
             display:inline-flex; align-items:center; gap:8px;
@@ -814,6 +871,8 @@
         kg: Number(row.kg || 0),
         pzas: Number(row.pzas || 0),
         mark: row.mark || 'none',
+        mark_nombre: cleanNombre(row.mark_nombre) || null,
+        pesado_at: row.pesado_at || null,
         position: Number(row.position || 0),
         deleted: !!row.deleted,
         updated_at: row.updated_at || new Date().toISOString(),
@@ -874,6 +933,8 @@
         kg: Number(row.kg || 0),
         pzas: Number(row.pzas || 0),
         mark: row.mark || 'none',
+        mark_nombre: cleanNombre(row.mark_nombre) || null,
+        pesado_at: row.pesado_at || null,
         position: Number(row.position || 0),
         deleted: !!row.deleted,
         updated_at: new Date().toISOString(),
@@ -936,7 +997,7 @@
       rowSaveTimers.set(key, timer);
     }
 
-    async function agregarFilaProductoActivo(markKey = 'none'){
+    async function agregarFilaProductoActivo(markKey = 'none', markNombre = ''){
       const rows = getRows(activeProduct);
       const position = rows.length ? Math.max(...rows.map(r => Number(r.position || 0))) + 1 : 1;
 
@@ -947,6 +1008,8 @@
         kg: 0,
         pzas: 0,
         mark: markKey,
+        mark_nombre: cleanNombre(markNombre) || null,
+        pesado_at: null,
         position,
         deleted: false,
         updated_at: new Date().toISOString(),
@@ -960,6 +1023,14 @@
       renderActiveTable();
       updateActiveTotals();
       focusLastKgInput(true);
+    }
+
+    function pintarHora(td, iso){
+      if(!td) return;
+      const h = formatHora(iso);
+      td.textContent = h || '—';
+      td.classList.toggle('vacia', !h);
+      td.title = iso ? new Date(iso).toLocaleString('es-MX') : 'Sin peso capturado';
     }
 
     function renderActiveTable(){
@@ -988,6 +1059,10 @@
 
         kgIn.addEventListener('input', ()=>{
           r.kg = parseFloat(kgIn.value) || 0;
+          // Hora de la pesada: se pone al capturar el primer peso; si se borra el peso, se borra la hora
+          if(r.kg > 0 && !r.pesado_at) r.pesado_at = new Date().toISOString();
+          if(r.kg <= 0) r.pesado_at = null;
+          pintarHora(horaTd, r.pesado_at);
           r.updated_at = new Date().toISOString();
           r.updated_by = DEVICE_ID;
           updateActiveTotals();
@@ -1004,7 +1079,7 @@
             }
 
             const currentMark = r.mark || 'none';
-            agregarFilaProductoActivo(currentMark);
+            agregarFilaProductoActivo(currentMark, r.mark_nombre);
             return;
           }
 
@@ -1046,7 +1121,7 @@
           if(e.key === 'Enter'){
             e.preventDefault();
             const currentMark = r.mark || 'none';
-            agregarFilaProductoActivo(currentMark);
+            agregarFilaProductoActivo(currentMark, r.mark_nombre);
             return;
           }
 
@@ -1065,7 +1140,13 @@
           }
         });
 
+        const horaTd = document.createElement('td');
+        horaTd.className = 'hora-cell';
+        pintarHora(horaTd, r.pesado_at);
+
         const mkTd = document.createElement('td');
+        const mkWrap = document.createElement('div');
+        mkWrap.className = 'mark-cell';
         const sel = buildMarkSelect(r.mark || 'none');
 
         sel.addEventListener('change', ()=>{
@@ -1081,7 +1162,7 @@
           if(e.key === 'Enter'){
             e.preventDefault();
             const currentMark = sel.value || 'none';
-            agregarFilaProductoActivo(currentMark);
+            agregarFilaProductoActivo(currentMark, r.mark_nombre);
           }
 
           if(e.key === 'ArrowDown'){
@@ -1095,7 +1176,36 @@
           }
         });
 
-        mkTd.appendChild(sel);
+        const nameIn = document.createElement('input');
+        nameIn.type = 'text';
+        nameIn.className = 'mark-name';
+        nameIn.placeholder = 'Nombre (opcional)';
+        nameIn.maxLength = 40;
+        nameIn.value = r.mark_nombre || '';
+
+        nameIn.addEventListener('input', ()=>{
+          r.mark_nombre = nameIn.value;
+          r.updated_at = new Date().toISOString();
+          r.updated_by = DEVICE_ID;
+          scheduleRowSave(activeProduct, r.id);
+        });
+        nameIn.addEventListener('change', ()=>{
+          r.mark_nombre = cleanNombre(nameIn.value);
+          nameIn.value = r.mark_nombre;
+          updateActiveTotals();
+          scheduleRowSave(activeProduct, r.id);
+        });
+        nameIn.addEventListener('keydown', (e)=>{
+          if(e.key === 'Enter'){
+            e.preventDefault();
+            r.mark_nombre = cleanNombre(nameIn.value);
+            agregarFilaProductoActivo(sel.value || 'none', r.mark_nombre);
+          }
+        });
+
+        mkWrap.appendChild(sel);
+        mkWrap.appendChild(nameIn);
+        mkTd.appendChild(mkWrap);
 
         const actTd = document.createElement('td');
 
@@ -1126,6 +1236,7 @@
 
         tr.appendChild(kgTd);
         tr.appendChild(pzTd);
+        tr.appendChild(horaTd);
         tr.appendChild(mkTd);
         tr.appendChild(actTd);
 
@@ -1136,7 +1247,7 @@
       if(rows.length === 0){
         tbody.innerHTML = `
           <tr>
-            <td colspan="4" style="padding:18px; color:var(--muted); font-weight:900;">
+            <td colspan="5" style="padding:18px; color:var(--muted); font-weight:900;">
               No hay pesadas aún para este producto.
             </td>
           </tr>
@@ -1210,7 +1321,10 @@
           .map(r => ({
             kg: Number(r.kg || 0),
             pzas: Number(r.pzas || 0),
-            mark: r.mark || 'none'
+            mark: r.mark || 'none',
+            mark_nombre: cleanNombre(r.mark_nombre) || null,
+            hora: formatHora(r.pesado_at) || null,
+            pesado_at: r.pesado_at || null
           }));
 
         if(rows.length){
@@ -1401,6 +1515,92 @@
       window.open(url, '_blank');
     }
 
+    async function registroHorasDelDia(){
+      const fecha = getFechaISO();
+
+      const { data, error } = await supabase
+        .from(ITEMS_TABLE)
+        .select('producto, kg, pzas, mark, mark_nombre, pesado_at, position, deleted')
+        .eq('fecha', fecha)
+        .eq('deleted', false);
+
+      if(error) return alert('❌ Error al obtener las pesadas: ' + error.message);
+
+      const filas = (data || [])
+        .filter(r => Number(r.kg || 0) > 0)
+        .sort((a,b)=>{
+          const ta = a.pesado_at ? new Date(a.pesado_at).getTime() : Infinity;
+          const tb = b.pesado_at ? new Date(b.pesado_at).getTime() : Infinity;
+          if(ta !== tb) return ta - tb;
+          return String(a.producto).localeCompare(String(b.producto), 'es') || (a.position||0) - (b.position||0);
+        });
+
+      if(!filas.length) return alert('No hay pesadas con peso en esta fecha.');
+
+      const sinHora = filas.filter(r => !r.pesado_at).length;
+      const totalKg = filas.reduce((a,r)=> a + Number(r.kg || 0), 0);
+
+      const csvRows = [['Hora','Producto','Kg','Pzas','Color','Nombre']].concat(
+        filas.map(r => [
+          formatHora(r.pesado_at),
+          r.producto,
+          Number(r.kg || 0).toFixed(2),
+          Number(r.pzas || 0),
+          markInfo(r.mark).label,
+          cleanNombre(r.mark_nombre)
+        ])
+      );
+      const csv = csvRows.map(row => row.map(v => '"' + String(v ?? '').replace(/"/g,'""') + '"').join(',')).join('\n');
+      const csvUrl = URL.createObjectURL(new Blob(['\ufeff' + csv], { type:'text/csv;charset=utf-8' }));
+
+      const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+        <title>Registro de horas ${fecha}</title>
+        <style>
+          body{font-family:Arial, sans-serif; margin:16px; color:#111}
+          h1{font-size:18px; margin:0 0 4px}
+          .sub{font-size:12px; color:#555; margin-bottom:10px}
+          table{border-collapse:collapse; width:100%}
+          th,td{border:1px solid #bbb; padding:5px 7px; font-size:12px; text-align:left}
+          th{background:#f1f5f9}
+          td.n{text-align:right; font-variant-numeric:tabular-nums}
+          td.h{font-variant-numeric:tabular-nums; white-space:nowrap; font-weight:700}
+          .dot{display:inline-block; width:10px; height:10px; border-radius:99px; border:1px solid #999; margin-right:5px; vertical-align:middle}
+          .acciones{margin-bottom:10px; display:flex; gap:8px}
+          .acciones a,.acciones button{padding:7px 12px; border:1px solid #bbb; border-radius:8px; background:#fff; color:#111; text-decoration:none; font-weight:700; cursor:pointer; font-size:13px}
+          @media print{ .acciones{display:none} }
+        </style></head><body>
+        <div class="acciones">
+          <button onclick="window.print()">Imprimir</button>
+          <a href="${csvUrl}" download="registro_horas_${fecha}.csv">Descargar CSV</a>
+        </div>
+        <h1>Registro de horas de pesadas — ${fecha}</h1>
+        <div class="sub">Pesadas: ${filas.length} · Total: ${totalKg.toFixed(2)} kg${sinHora ? ` · ${sinHora} sin hora (capturadas antes de este cambio)` : ''}</div>
+        <table>
+          <thead><tr><th>#</th><th>Hora</th><th>Producto</th><th>Kg</th><th>Pzas</th><th>Color</th><th>Nombre</th></tr></thead>
+          <tbody>
+            ${filas.map((r,i)=>{
+              const info = markInfo(r.mark);
+              return `<tr>
+                <td class="n">${i+1}</td>
+                <td class="h">${formatHora(r.pesado_at) || '—'}</td>
+                <td>${escHtml(r.producto)}</td>
+                <td class="n">${Number(r.kg || 0).toFixed(2)}</td>
+                <td class="n">${Number(r.pzas || 0) || ''}</td>
+                <td><span class="dot" style="background:${info.dot}"></span>${info.label}</td>
+                <td>${escHtml(cleanNombre(r.mark_nombre))}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </body></html>`;
+
+      const win = window.open('', '_blank');
+      if(!win) return alert('El navegador bloqueó la ventana. Permite ventanas emergentes para esta página.');
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+    }
+
     function subscribeLive(){
       if(rtSub){
         try{ supabase.removeSubscription(rtSub); }catch(e){}
@@ -1519,6 +1719,11 @@
         return;
       }
 
+      // La hora de la pesada es el momento en que se toma el peso de la báscula
+      const trPeso = target.closest('tr');
+      const rowPeso = trPeso ? (state.resultados[activeProduct] || []).find(x => x.id === trPeso.dataset.rowId) : null;
+      if(rowPeso && Number(pesoActual) > 0) rowPeso.pesado_at = new Date().toISOString();
+
       target.value = Number(pesoActual).toFixed(2);
       target.dispatchEvent(new Event('input', { bubbles:true }));
       target.dispatchEvent(new Event('change', { bubbles:true }));
@@ -1531,9 +1736,10 @@
       const idx = rows.indexOf(tr);
       const currentMarkSel = tr.querySelector('.mark-select');
       const currentMark = currentMarkSel ? currentMarkSel.value : 'none';
+      const currentNombre = tr.querySelector('.mark-name')?.value || '';
 
       if(idx === rows.length - 1){
-        agregarFilaProductoActivo(currentMark);
+        agregarFilaProductoActivo(currentMark, currentNombre);
       }else{
         focusInputByIndex(idx + 1, 'kg');
       }
